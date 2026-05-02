@@ -1,4 +1,4 @@
-import { db, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where } from './firebase-config.js';
+import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail } from './firebase-config.js';
 
 let currentBarbeariaId = null;
 
@@ -162,5 +162,27 @@ export const DB = {
   
   async updateUserPoints(uid, points) {
     await updateDoc(doc(db, 'users', uid), { points });
+  },
+
+  // ==============================
+  // SUPER ADMIN — GESTÃO DO DONO
+  // ==============================
+  async getUserById(uid) {
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() };
+  },
+
+  async updateUserProfile(uid, data) {
+    // Atualiza campos permitidos no documento do usuário no Firestore
+    await updateDoc(doc(db, 'users', uid), data);
+  },
+
+  async updateBarbeariaName(slug, name) {
+    await updateDoc(doc(db, 'barbearias', slug), { name });
+  },
+
+  async sendOwnerPasswordReset(email) {
+    await sendPasswordResetEmail(auth, email);
   }
 };

@@ -759,7 +759,7 @@ const rSuperAdmin = () => `
     </div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>ID (Slug)</th><th>Nome da Barbearia</th><th>Status</th><th>Acesso Público</th></tr></thead>
+        <thead><tr><th>ID (Slug)</th><th>Nome da Barbearia</th><th>Status</th><th>Acesso Público</th><th>Ações</th></tr></thead>
         <tbody id="tbTenants"><tr><td colspan="4">Carregando...</td></tr></tbody>
       </table>
     </div>
@@ -918,8 +918,8 @@ export const App = {
     tb.innerHTML = tnts.map(t => {
       const isAct = t.status === 'active';
       return `<tr>
-        <td>${t.id}</td>
-        <td>${esc(t.name)}</td>
+        <td><code style="background:var(--bg3);padding:2px 7px;border-radius:5px;font-size:.82rem;color:var(--gold)">${esc(t.id)}</code></td>
+        <td><strong>${esc(t.name)}</strong></td>
         <td>
           <div style="display:flex;align-items:center;gap:10px">
             <label class="toggle-switch">
@@ -930,8 +930,157 @@ export const App = {
           </div>
         </td>
         <td><a href="?b=${t.id}" target="_blank" style="${!isAct?'pointer-events:none;opacity:0.5':''}">Acessar 🔗</a></td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="App.openEditTenantModal('${esc(t.id)}')" title="Editar informações do tenant">
+            ✎ Editar
+          </button>
+        </td>
       </tr>`;
     }).join('');
+  },
+
+  async openEditTenantModal(slug) {
+    // Busca dados do tenant
+    let tenant;
+    try {
+      tenant = await DB.getBarbeariaBySlug(slug);
+      if (!tenant) { T.err('Tenant não encontrado.'); return; }
+    } catch(e) { T.err('Erro ao carregar tenant.'); return; }
+
+    // Busca dados do dono
+    let owner = null;
+    if (tenant.donoId) {
+      try { owner = await DB.getUserById(tenant.donoId); } catch(e) { /* ok */ }
+    }
+
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal" style="max-width:520px">
+        <div class="modal-head">
+          <h3 class="modal-title">✎ Editar Barbearia</h3>
+          <button class="modal-close" onclick="App.closeModal()">&#x2715;</button>
+        </div>
+
+        <!-- Identidade da barbearia -->
+        <div style="background:var(--ga1);border:1px solid var(--gold3);border-radius:var(--r2);padding:12px 15px;margin-bottom:22px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.3rem">&#x1F4C8;</span>
+          <div>
+            <div style="font-weight:700;font-size:.88rem;color:var(--gold)">${esc(tenant.name)}</div>
+            <div style="font-size:.75rem;color:var(--text2)">Slug: <code style="color:var(--text3)">${esc(slug)}</code></div>
+          </div>
+        </div>
+
+        <form id="editTntFrm">
+          <!-- Dados da barbearia -->
+          <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+            🏢 Informações da Barbearia
+          </div>
+          <div class="fg">
+            <label class="flabel">Nome da Barbearia *</label>
+            <input type="text" name="barbName" class="fc" value="${esc(tenant.name)}" required>
+          </div>
+
+          <!-- Dados do dono -->
+          <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:12px;margin-top:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+            👤 Dados do Dono
+          </div>
+          <div class="fg">
+            <label class="flabel">Nome do Dono</label>
+            <input type="text" name="ownerName" class="fc" value="${esc(owner?.name||'')}" placeholder="Nome completo do dono">
+          </div>
+          <div class="fg">
+            <label class="flabel">E-mail do Dono</label>
+            <input type="email" name="ownerEmail" class="fc" value="${esc(owner?.email||'')}" placeholder="email@exemplo.com">
+            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">⚠️ Alterar o e-mail aqui atualiza apenas o cadastro. Use o reset de senha para enviar link de acesso.</div>
+          </div>
+
+          <div id="editTntErr" class="ferr" style="display:none;margin-bottom:12px"></div>
+
+          <button type="submit" class="btn btn-primary w-full" id="btnSaveEditTnt">
+            ✓ Salvar Alterações
+          </button>
+        </form>
+
+        <!-- Reset de senha -->
+        <div style="margin-top:20px;padding:16px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r2)">
+          <div style="font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🔐 Redefinir Senha do Dono</div>
+          <p style="font-size:.82rem;color:var(--text2);margin-bottom:12px">Envie um link de redefinição de senha para o e-mail do dono. O link é válido por 1 hora.</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="email" id="resetEmailInput" class="fc" value="${esc(owner?.email||'')}" placeholder="E-mail para envio" style="flex:1;min-width:200px">
+            <button type="button" class="btn btn-ghost btn-sm" id="btnSendReset" onclick="App.sendPasswordReset('${esc(slug)}')" style="white-space:nowrap">
+              📧 Enviar Link
+            </button>
+          </div>
+          <div id="resetMsg" style="font-size:.78rem;margin-top:8px;display:none"></div>
+        </div>
+
+      </div>
+    </div>`;
+
+    // Bind form submit
+    document.getElementById('editTntFrm').onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const barbName   = fd.get('barbName').trim();
+      const ownerName  = fd.get('ownerName').trim();
+      const ownerEmail = fd.get('ownerEmail').trim();
+      const btn = document.getElementById('btnSaveEditTnt');
+      const errEl = document.getElementById('editTntErr');
+      errEl.style.display = 'none';
+      if (!barbName) { errEl.textContent = 'O nome da barbearia é obrigatório.'; errEl.style.display = 'block'; return; }
+      btn.disabled = true; btn.textContent = 'Salvando...';
+      try {
+        // Atualiza nome da barbearia se mudou
+        if (barbName !== tenant.name) {
+          await DB.updateBarbeariaName(slug, barbName);
+        }
+        // Atualiza dados do dono no Firestore
+        if (tenant.donoId) {
+          const upd = {};
+          if (ownerName  && ownerName  !== owner?.name)  upd.name  = ownerName;
+          if (ownerEmail && ownerEmail !== owner?.email) upd.email = ownerEmail;
+          if (Object.keys(upd).length > 0) await DB.updateUserProfile(tenant.donoId, upd);
+        }
+        T.ok('✓ Informações atualizadas com sucesso!');
+        App.closeModal();
+        App._loadTenants();
+      } catch(err) {
+        errEl.textContent = 'Erro: ' + err.message;
+        errEl.style.display = 'block';
+        btn.disabled = false; btn.textContent = '✓ Salvar Alterações';
+      }
+    };
+  },
+
+  async sendPasswordReset(slug) {
+    const emailInput = document.getElementById('resetEmailInput');
+    const msgEl = document.getElementById('resetMsg');
+    const btn = document.getElementById('btnSendReset');
+    const email = emailInput?.value?.trim();
+    if (!email) { 
+      if(msgEl){ msgEl.textContent = '⚠️ Informe o e-mail.'; msgEl.style.display = 'block'; msgEl.style.color = 'var(--warning)'; }
+      return; 
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+    try {
+      await DB.sendOwnerPasswordReset(email);
+      if(msgEl) {
+        msgEl.textContent = '✅ Link enviado! O dono deve verificar o e-mail (incluindo caixa de spam).';
+        msgEl.style.color = 'var(--success)';
+        msgEl.style.display = 'block';
+      }
+      T.ok('📧 E-mail de redefinição enviado para ' + email);
+    } catch(err) {
+      const msg = err.code === 'auth/user-not-found' ? 'Nenhuma conta encontrada com este e-mail.' : err.message;
+      if(msgEl) {
+        msgEl.textContent = '❌ ' + msg;
+        msgEl.style.color = 'var(--danger)';
+        msgEl.style.display = 'block';
+      }
+      T.err('Erro: ' + msg);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📧 Enviar Link'; }
+    }
   },
 
   async toggleTenant(id, isActive) {
