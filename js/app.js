@@ -1,6 +1,6 @@
 import { Auth } from './auth.js';
 import { DB } from './db.js';
-import { generatePixPayload } from './pix.js';
+import { generatePixPayload, sanitizeChave } from './pix.js';
 
 /* =====================================================
    UTILITÁRIOS
@@ -1134,14 +1134,18 @@ export const App = {
   async savePix(e){
     e.preventDefault();
     const fd=new FormData(e.target);
-    const pixConfig={tipo:fd.get('tipo'),chave:fd.get('chave').trim(),nome:fd.get('nome').trim(),cidade:fd.get('cidade').trim()};
+    const tipo=fd.get('tipo');
+    const chaveRaw=fd.get('chave').trim();
+    const chave=sanitizeChave(tipo, chaveRaw);
+    const pixConfig={tipo, chave, nome:fd.get('nome').trim(), cidade:fd.get('cidade').trim()};
     const btn=document.getElementById('btnSavePix');
     btn.disabled=true; btn.textContent='Salvando...';
+    console.log('[PIX Config] Tipo:', tipo, '| Chave original:', chaveRaw, '| Chave sanitizada:', chave);
     try{
       const slug=DB.getBarbeariaId();
       await DB.saveBarbeariaPixConfig(slug, pixConfig);
       _tenantInfo = await DB.refreshTenantInfo(slug);
-      T.ok('⚡ PIX configurado com sucesso!');
+      T.ok(`⚡ PIX configurado! Chave salva: ${chave}`);
       this.render();
     }catch(err){ T.err('Erro ao salvar: '+err.message); btn.disabled=false; btn.textContent='✓ Salvar Configurações PIX'; }
   },
