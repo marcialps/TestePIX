@@ -556,6 +556,7 @@ const rAdmLayout = (active, content) => {
     {id:'admin-services',i:'✦',l:'Serviços'},
     {id:'admin-barbers',i:'✂',l:'Barbeiros'},
     {id:'admin-appointments',i:'📅',l:'Agendamentos'},
+    {id:'admin-reports',i:'📊',l:'Relatórios'},
     {id:'admin-pix',i:'⚡',l:'Configurações PIX'},
   ];
   return `
@@ -746,6 +747,98 @@ const rAdmPix = () => {
   </div>`);
 };
 
+const rAdmReports = () => {
+  const all = DB.apts().filter(a => a.status !== 'cancelado');
+  const filter = App._reportFilter || 'mes';
+  const now = new Date();
+  let filtered = [];
+  let labels = [];
+  let dataPoints = [];
+
+  const getStartOfWeek = (d) => {
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
+  };
+
+  if (filter === 'dia') {
+    const today = todayStr();
+    filtered = all.filter(a => a.date === today);
+    labels = [fmtDate(today)];
+    dataPoints = [filtered.reduce((s, a) => s + Number(a.price || 0), 0)];
+  } else if (filter === 'semana') {
+    const start = getStartOfWeek(new Date());
+    start.setHours(0,0,0,0);
+    filtered = all.filter(a => new Date(a.date + 'T12:00:00') >= start);
+    // Agrupa por dia da semana
+    const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    labels = days;
+    dataPoints = days.map((_, i) => {
+      const d = new Date(start); d.setDate(d.getDate() + i);
+      const ds = d.toISOString().split('T')[0];
+      return all.filter(a => a.date === ds && a.status !== 'cancelado').reduce((s, a) => s + Number(a.price || 0), 0);
+    });
+  } else {
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    filtered = all.filter(a => {
+      const d = new Date(a.date + 'T12:00:00');
+      return d.getMonth() === month && d.getFullYear() === year;
+    });
+    // Agrupa por semanas do mês ou últimos 30 dias
+    const last30 = [];
+    for(let i=14; i>=0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      last30.push(d.toISOString().split('T')[0]);
+    }
+    labels = last30.map(d => d.split('-')[2] + '/' + d.split('-')[1]);
+    dataPoints = last30.map(ds => all.filter(a => a.date === ds && a.status !== 'cancelado').reduce((s, a) => s + Number(a.price || 0), 0));
+  }
+
+  const totalRev = filtered.reduce((s, a) => s + Number(a.price || 0), 0);
+  const avgTicket = filtered.length ? totalRev / filtered.length : 0;
+
+  setTimeout(() => App._drawReportChart(labels, dataPoints), 100);
+
+  return rAdmLayout('admin-reports', `
+    <div class="ph">
+      <div><h1 class="ptitle">Relatórios & Métricas</h1><p class="psub">Análise de desempenho da sua barbearia</p></div>
+      <div class="tabs" style="margin-bottom:0">
+        <div class="tab ${filter === 'dia' ? 'active' : ''}" onclick="App.changeReportFilter('dia')">Hoje</div>
+        <div class="tab ${filter === 'semana' ? 'active' : ''}" onclick="App.changeReportFilter('semana')">Esta Semana</div>
+        <div class="tab ${filter === 'mes' ? 'active' : ''}" onclick="App.changeReportFilter('mes')">Últimos 15 dias</div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="scl">Agendamentos</div>
+        <div class="scv">${filtered.length}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">No período selecionado</div>
+      </div>
+      <div class="stat-card">
+        <div class="scl">Faturamento</div>
+        <div class="scv" style="color:var(--success)">${fmt(totalRev)}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Receita bruta confirmada</div>
+      </div>
+      <div class="stat-card">
+        <div class="scl">Ticket Médio</div>
+        <div class="scv" style="color:var(--info)">${fmt(avgTicket)}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Média por cliente</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:20px;height:350px">
+      <div style="font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:20px;display:flex;align-items:center;gap:8px">
+        <span>📊</span> Evolução do Faturamento
+      </div>
+      <div style="height:260px;position:relative">
+        <canvas id="reportChart"></canvas>
+      </div>
+    </div>
+  `);
+};
+
 /* =====================================================
    SUPER ADMIN
 ===================================================== */
@@ -849,6 +942,7 @@ export const App = {
     else if(hash==='admin-services') content=rAdmServices();
     else if(hash==='admin-barbers') content=rAdmBarbers();
     else if(hash==='admin-appointments') content=rAdmApts();
+    else if(hash==='admin-reports') content=rAdmReports();
     else if(hash==='admin-pix') content=rAdmPix();
     else content = rHome();
 
@@ -1297,6 +1391,40 @@ export const App = {
       T.ok(`⚡ PIX configurado! Chave salva: ${chave}`);
       this.render();
     }catch(err){ T.err('Erro ao salvar: '+err.message); btn.disabled=false; btn.textContent='✓ Salvar Configurações PIX'; }
+  },
+
+  // --- Relatórios ---
+  changeReportFilter(filter){
+    this._reportFilter = filter;
+    this.render();
+  },
+
+  _drawReportChart(labels, data){
+    const ctx = document.getElementById('reportChart');
+    if(!ctx) return;
+    if(window._myChart) window._myChart.destroy();
+    window._myChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Faturamento (R$)',
+          data: data,
+          backgroundColor: '#C9A227',
+          borderRadius: 6,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#252525' }, ticks: { color: '#a0a0a0', font: { size: 10 } } },
+          x: { grid: { display: false }, ticks: { color: '#a0a0a0', font: { size: 10 } } }
+        }
+      }
+    });
   },
   
   toggleUserDD(){
