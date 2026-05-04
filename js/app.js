@@ -657,14 +657,41 @@ const rAdmBarbers = () => {
 };
 
 const rAdmApts = () => {
-  const all=[...DB.apts()].sort((a,b)=>b.date.localeCompare(a.date)||b.time.localeCompare(a.time));
-  const hasPix=!!(_tenantInfo?.pixConfig?.chave);
-  return rAdmLayout('admin-appointments',`
-  <div class="ph"><div><h1 class="ptitle">Agendamentos</h1></div></div>
-  <div class="tbl-wrap">
-    <table><thead><tr><th>Cliente</th><th>Serviço</th><th>Barbeiro</th><th>Data</th><th>Hora</th><th>Status</th>${hasPix?'<th>PIX</th>':''}<th>Ações</th></tr></thead>
-    <tbody id="aptsBody">${rAptRows(all)}</tbody></table>
-  </div>`);
+  const all = [...DB.apts()].sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+  const hasPix = !!(_tenantInfo?.pixConfig?.chave);
+
+  const emEspera = all.filter(a => a.status === 'confirmado');
+  const concluidos = all.filter(a => a.status === 'concluido');
+  const cancelados = all.filter(a => a.status === 'cancelado');
+
+  const renderSection = (title, apts, color, icon) => `
+    <div style="margin-bottom: 40px;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 18px;">
+        <div style="width: 40px; height: 40px; background: ${color}15; border: 1px solid ${color}33; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">${icon}</div>
+        <div>
+          <h2 style="font-family: var(--ft); font-size: 1.25rem; letter-spacing: 0.5px;">${title}</h2>
+          <div style="font-size: 0.75rem; color: var(--text2); font-weight: 600; text-transform: uppercase;">${apts.length} agendamento${apts.length !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Cliente</th><th>Serviço</th><th>Barbeiro</th><th>Data</th><th>Hora</th><th>Status</th>${hasPix ? '<th>PIX</th>' : ''}<th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>${rAptRows(apts)}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  return rAdmLayout('admin-appointments', `
+    <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div></div>
+    ${renderSection('Em Espera', emEspera, '#3b82f6', '⏳')}
+    ${renderSection('Concluídos', concluidos, '#22c55e', '✅')}
+    ${renderSection('Cancelados', cancelados, '#ef4444', '✕')}
+  `);
 };
 
 const rAptRows = (apts) => {
