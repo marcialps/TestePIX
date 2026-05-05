@@ -1057,7 +1057,9 @@ export const App = {
 
     tb.innerHTML = tenantsWithOwners.map(t => {
       const isAct = t.status === 'active';
-      const cleanPhone = t.ownerPhone.replace(/\D/g, '');
+      // Prioriza o telefone da barbearia (tenant), senão usa o do dono
+      const phoneToUse = t.phone || t.ownerPhone || '';
+      const cleanPhone = phoneToUse.replace(/\D/g, '');
       const waLink = cleanPhone ? `https://wa.me/55${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}` : null;
 
       return `<tr>
@@ -1128,6 +1130,11 @@ export const App = {
             <label class="flabel">Nome da Barbearia *</label>
             <input type="text" name="barbName" class="fc" value="${esc(tenant.name)}" required>
           </div>
+          <div class="fg">
+            <label class="flabel">WhatsApp da Barbearia (ex: 11999999999)</label>
+            <input type="text" name="barbPhone" class="fc" value="${esc(tenant.phone||'')}" placeholder="Somente números">
+            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">Se preenchido, este será usado no botão de Contato em vez do telefone do dono.</div>
+          </div>
 
           <!-- Dados do dono -->
           <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:12px;margin-top:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
@@ -1171,6 +1178,7 @@ export const App = {
       e.preventDefault();
       const fd = new FormData(e.target);
       const barbName   = fd.get('barbName').trim();
+      const barbPhone  = fd.get('barbPhone').trim();
       const ownerName  = fd.get('ownerName').trim();
       const ownerEmail = fd.get('ownerEmail').trim();
       const btn = document.getElementById('btnSaveEditTnt');
@@ -1179,9 +1187,13 @@ export const App = {
       if (!barbName) { errEl.textContent = 'O nome da barbearia é obrigatório.'; errEl.style.display = 'block'; return; }
       btn.disabled = true; btn.textContent = 'Salvando...';
       try {
-        // Atualiza nome da barbearia se mudou
-        if (barbName !== tenant.name) {
-          await DB.updateBarbeariaName(slug, barbName);
+        // Atualiza dados da barbearia se mudaram
+        const tntUpd = {};
+        if (barbName !== tenant.name) tntUpd.name = barbName;
+        if (barbPhone !== (tenant.phone||'')) tntUpd.phone = barbPhone;
+        
+        if (Object.keys(tntUpd).length > 0) {
+          await DB.updateBarbeariaData(slug, tntUpd);
         }
         // Atualiza dados do dono no Firestore
         if (tenant.donoId) {

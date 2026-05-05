@@ -186,6 +186,10 @@ export const DB = {
     await updateDoc(doc(db, 'barbearias', slug), { name });
   },
 
+  async updateBarbeariaData(slug, data) {
+    await updateDoc(doc(db, 'barbearias', slug), data);
+  },
+
   async sendOwnerPasswordReset(email) {
     await sendPasswordResetEmail(auth, email);
   }
