@@ -44,6 +44,10 @@ export const DB = {
     await updateDoc(doc(db, 'barbearias', slug), { status });
   },
 
+  async deleteBarbearia(slug) {
+    await deleteDoc(doc(db, 'barbearias', slug));
+  },
+
   // Salva configuração PIX da barbearia
   async saveBarbeariaPixConfig(slug, pixConfig) {
     await updateDoc(doc(db, 'barbearias', slug), { pixConfig });
