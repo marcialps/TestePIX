@@ -610,6 +610,118 @@ const rAdmLayout = (active, content) => {
 </div>`;
 };
 
+const rAdmDashCal = () => {
+  const v = App._dashCalView || 'dia';
+  const cd = App._dashCalDate || new Date();
+  
+  // Calculate days to show
+  const days = [];
+  if(v === 'dia') {
+    days.push(new Date(cd));
+  } else {
+    // Semana starts on Sunday
+    const d = new Date(cd);
+    const day = d.getDay();
+    const diff = d.getDate() - day;
+    const startOfWeek = new Date(d.setDate(diff));
+    for(let i=0; i<7; i++) {
+      const nd = new Date(startOfWeek);
+      nd.setDate(startOfWeek.getDate() + i);
+      days.push(nd);
+    }
+  }
+
+  const dNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const p2 = n => n.toString().padStart(2,'0');
+  const dStr = d => `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+
+  const allApts = DB.apts().filter(a => a.status !== 'cancelado');
+  const pros = DB.pros();
+  const svcs = DB.services();
+
+  // Create grid lines (07:00 to 22:00)
+  const startHour = 7;
+  const endHour = 22;
+  const hours = [];
+  for(let i=startHour; i<=endHour; i++) hours.push(i);
+
+  const calHtml = `
+  <div class="dash-cal-wrap">
+    <div class="dash-cal-toolbar">
+      <div class="dash-cal-nav">
+        <button class="btn btn-ghost" onclick="App.navDashCal(-1)">◀</button>
+        <span class="dash-cal-title">${v === 'dia' ? `${dNames[cd.getDay()]}, ${p2(cd.getDate())}/${p2(cd.getMonth()+1)}` : `${p2(days[0].getDate())}/${p2(days[0].getMonth()+1)} - ${p2(days[6].getDate())}/${p2(days[6].getMonth()+1)}`}</span>
+        <button class="btn btn-ghost" onclick="App.navDashCal(1)">▶</button>
+      </div>
+      <div class="dash-cal-views">
+        <button class="btn btn-sm ${v==='dia'?'btn-primary':'btn-ghost'}" onclick="App.setDashCalView('dia')">Dia</button>
+        <button class="btn btn-sm ${v==='semana'?'btn-primary':'btn-ghost'}" onclick="App.setDashCalView('semana')">Semana</button>
+      </div>
+    </div>
+    
+    <div class="dash-cal-header">
+      <div class="dash-cal-header-spacer"></div>
+      <div class="dash-cal-days">
+        ${days.map(d => `<div class="dash-cal-day-header ${dStr(d)===dStr(new Date())?'active':''}">${dNames[d.getDay()]}<br><span style="font-size:.75rem;font-weight:400">${p2(d.getDate())}/${p2(d.getMonth()+1)}</span></div>`).join('')}
+      </div>
+    </div>
+
+    <div class="dash-cal-body">
+      <div class="dash-cal-time-col">
+        ${hours.map(h => `<div class="dash-cal-time-cell">${p2(h)}:00</div>`).join('')}
+      </div>
+      <div class="dash-cal-days">
+        ${days.map(d => {
+          const ds = dStr(d);
+          const dApts = allApts.filter(a => a.date === ds);
+          
+          let evs = '';
+          dApts.forEach(apt => {
+            const [h,m] = apt.time.split(':').map(Number);
+            if(h < startHour || h > endHour) return;
+            
+            const sv = svcs.find(s => s.id === apt.serviceId);
+            const pr = pros.find(p => p.id === apt.professionalId);
+            const dur = sv ? Number(sv.duration) : 30;
+            
+            const top = (h - startHour) * 60 + m; // 1px = 1min
+            const height = dur;
+            
+            // Generate color based on pro ID to make it distinct
+            const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e'];
+            let colorIdx = 0;
+            if(pr) {
+              colorIdx = pr.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+            }
+            const baseColor = colors[colorIdx];
+            
+            const isDone = apt.status === 'concluido';
+            const bg = isDone ? 'var(--bg3)' : `${baseColor}22`;
+            const border = isDone ? 'var(--border)' : baseColor;
+            const textC = isDone ? 'var(--text2)' : baseColor;
+            const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
+            
+            evs += `<div class="dash-cal-event" style="top:${top}px;height:${height}px;background:${bg};border-left-color:${border};opacity:${isDone?0.6:1}" onclick="App.dashAptClick('${apt.id}')">
+              <div class="dash-cal-event-title" style="color:${textC}">${esc(clName)}</div>
+              <div class="dash-cal-event-sub">${esc(sv?.name||'—')} · ${esc(pr?.name||'—')}</div>
+              ${isDone ? '<span class="cal-badge">Concluído</span>' : ''}
+            </div>`;
+          });
+          
+          return `<div class="dash-cal-day-col">
+            <div class="dash-cal-grid-lines">
+              ${hours.map(() => '<div class="dash-cal-grid-line"></div>').join('')}
+            </div>
+            ${evs}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  return calHtml;
+};
+
 const rAdmDash = () => {
   const all=DB.apts(), pros=DB.pros(), svcs=DB.services();
   const td=todayStr();
@@ -628,6 +740,7 @@ const rAdmDash = () => {
     ${hasPix?`<div class="stat-card" style="border-color:rgba(245,158,11,.35)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">⚡ PIX Aguardando</span></div><div class="scv" style="color:var(--warning)">${pixPend.length}</div></div>
     <div class="stat-card" style="border-color:rgba(34,197,94,.3)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">✅ PIX Confirmados</span></div><div class="scv" style="color:var(--success)">${pixOk.length}</div></div>`:''}
   </div>
+  ${rAdmDashCal()}
   ${!hasPix?`<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:var(--r);padding:14px 18px;display:flex;align-items:center;gap:12px;margin-bottom:20px">
     <span style="font-size:1.4rem">⚡</span>
     <div style="flex:1"><div style="font-weight:600;font-size:.9rem">PIX não configurado</div><div style="font-size:.8rem;color:var(--text2)">Configure sua chave PIX para oferecer pagamento via QR Code aos clientes.</div></div>
@@ -1006,6 +1119,8 @@ const openTenantModal = () => {
    APP CONTROLLER PRINCIPAL
 ===================================================== */
 export const App = {
+  _dashCalView: 'dia',
+  _dashCalDate: new Date(),
   async render(){
     const hash=window.location.hash.slice(1).split('?')[0]||'home';
     const app=document.getElementById('app');
@@ -1478,6 +1593,48 @@ export const App = {
   async delBrb(id){ if(confirm('Excluir este barbeiro?')){ await DB.deletePro(id); T.ok('Barbeiro excluído.'); this.render(); } },
   async admCancel(id){ if(confirm('Cancelar agendamento?')){ await DB.updateAptStatus(id, 'cancelado'); T.ok('Cancelado.'); this.render(); } },
   async admComplete(id){ await DB.updateAptStatus(id, 'concluido'); T.ok('Concluído.'); this.render(); },
+
+  setDashCalView(view) {
+    this._dashCalView = view;
+    this.render();
+  },
+  
+  navDashCal(dir) {
+    const d = new Date(this._dashCalDate || new Date());
+    const v = this._dashCalView || 'dia';
+    if(v === 'dia') {
+      d.setDate(d.getDate() + dir);
+    } else {
+      d.setDate(d.getDate() + (dir * 7));
+    }
+    this._dashCalDate = d;
+    this.render();
+  },
+  
+  dashAptClick(id) {
+    const apt = DB.apts().find(a => a.id === id);
+    if(!apt) return;
+    const sv = DB.services().find(s => s.id === apt.serviceId);
+    const pr = DB.pros().find(p => p.id === apt.professionalId);
+    const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
+    const isDone = apt.status === 'concluido';
+    
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal" style="max-width:400px;text-align:center">
+        <div class="modal-head" style="margin-bottom:10px">
+          <h3 class="modal-title">Detalhes do Agendamento</h3>
+          <button class="modal-close" onclick="App.closeModal()">✕</button>
+        </div>
+        <div class="uavatar" style="margin:0 auto 10px;width:60px;height:60px;font-size:1.5rem;background:var(--gold);color:#000">${initials(clName)}</div>
+        <h3 style="font-size:1.2rem;font-weight:700;margin-bottom:5px">${esc(clName)}</h3>
+        <p style="color:var(--text2);margin-bottom:20px">${esc(sv?.name||'—')} com ${esc(pr?.name||'—')}<br>${fmtDate(apt.date)} às ${apt.time}</p>
+        
+        ${!isDone ? `<button class="btn btn-success w-full" style="margin-bottom:10px" onclick="App.closeModal();App.admComplete('${apt.id}')">✓ Marcar como Concluído</button>` : ''}
+        ${apt.status !== 'cancelado' && !isDone ? `<button class="btn btn-danger w-full btn-outline" onclick="App.closeModal();App.admCancel('${apt.id}')">✕ Cancelar Agendamento</button>` : ''}
+      </div>
+    </div>`;
+  },
 
   openClientHistory(userId) {
     const client = _tenantUsers.find(u => u.id === userId);
