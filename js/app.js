@@ -777,25 +777,25 @@ const rAdmClients = () => {
       <tbody>
         ${clients.length ? clients.map(c => {
           const ac=avColor(c.name); const tc=ac==='#C9A227'?'#000':'#fff';
-          const cleanPhone = (c.phone || '').replace(/\\D/g, '');
-          const waLink = cleanPhone ? \`https://wa.me/55\${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}\` : null;
-          return \`<tr>
+          const cleanPhone = (c.phone || '').replace(/\D/g, '');
+          const waLink = cleanPhone ? `https://wa.me/55${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}` : null;
+          return `<tr>
             <td>
               <div style="display:flex;align-items:center;gap:10px">
-                <div class="uavatar" style="background:\${ac};color:\${tc}">\${initials(c.name)}</div>
-                <strong style="cursor:pointer;color:var(--text);transition:var(--tr)" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--text)'" onclick="App.openClientHistory('\${c.id}')">\${esc(c.name)}</strong>
+                <div class="uavatar" style="background:${ac};color:${tc}">${initials(c.name)}</div>
+                <strong style="cursor:pointer;color:var(--text);transition:var(--tr)" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--text)'" onclick="App.openClientHistory('${c.id}')">${esc(c.name)}</strong>
               </div>
             </td>
-            <td>\${esc(c.email)}</td>
-            <td>\${esc(c.phone||'—')}</td>
+            <td>${esc(c.email)}</td>
+            <td>${esc(c.phone||'—')}</td>
             <td>
               <div style="display:flex;gap:5px;flex-wrap:wrap">
-                <button class="btn btn-ghost btn-sm" onclick="App.openClientHistory('\${c.id}')">Ver Histórico</button>
-                \${waLink ? \`<a href="\${waLink}" target="_blank" class="btn btn-sm" style="background:#25d366;color:#fff;gap:5px">\${wsIcon} Contato</a>\` : ''}
+                <button class="btn btn-ghost btn-sm" onclick="App.openClientHistory('${c.id}')">Ver Histórico</button>
+                ${waLink ? `<a href="${waLink}" target="_blank" class="btn btn-sm" style="background:#25d366;color:#fff;gap:5px">${wsIcon} Contato</a>` : ''}
               </div>
             </td>
-          </tr>\`;
-        }).join('') : \`<tr><td colspan="4" style="text-align:center;padding:36px;color:var(--text2)">Nenhum cliente encontrado.</td></tr>\`}
+          </tr>`;
+        }).join('') : `<tr><td colspan="4" style="text-align:center;padding:36px;color:var(--text2)">Nenhum cliente encontrado.</td></tr>`}
       </tbody>
     </table>
   </div>`);
@@ -1496,22 +1496,22 @@ export const App = {
         const sv = svcs.find(s => s.id === apt.serviceId);
         const pr = pros.find(p => p.id === apt.professionalId);
         const [bc,bl] = apt.status==='confirmado'?['b-success','Confirmado']:apt.status==='cancelado'?['b-danger','Cancelado']:['b-info','Concluído'];
-        return \`
+        return `
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
           <div>
-            <div style="font-weight:600;font-family:var(--ft);font-size:1.05rem;margin-bottom:4px">\${esc(sv?.name||'—')}</div>
-            <div style="font-size:0.85rem;color:var(--text2)">✂ \${esc(pr?.name||'—')} · 📅 \${fmtDate(apt.date)} às \${apt.time}</div>
+            <div style="font-weight:600;font-family:var(--ft);font-size:1.05rem;margin-bottom:4px">${esc(sv?.name||'—')}</div>
+            <div style="font-size:0.85rem;color:var(--text2)">✂ ${esc(pr?.name||'—')} · 📅 ${fmtDate(apt.date)} às ${apt.time}</div>
           </div>
           <div style="text-align:right">
-            <span class="badge \${bc}" style="margin-bottom:6px">\${bl}</span>
-            <div style="font-weight:700;color:var(--gold);font-size:1.05rem">\${fmt(apt.price)}</div>
+            <span class="badge ${bc}" style="margin-bottom:6px">${bl}</span>
+            <div style="font-weight:700;color:var(--gold);font-size:1.05rem">${fmt(apt.price)}</div>
           </div>
-        </div>\`;
+        </div>`;
       }).join('');
     }
 
     const ac=avColor(client.name); const tc=ac==='#C9A227'?'#000':'#fff';
-    document.getElementById('modalRoot').innerHTML = \`
+    document.getElementById('modalRoot').innerHTML = `
     <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
       <div class="modal" style="max-width:540px">
         <div class="modal-head">
@@ -1519,18 +1519,18 @@ export const App = {
           <button class="modal-close" onclick="App.closeModal()">✕</button>
         </div>
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-          <div class="uavatar" style="width:52px;height:52px;font-size:1.3rem;background:\${ac};color:\${tc}">\${initials(client.name)}</div>
+          <div class="uavatar" style="width:52px;height:52px;font-size:1.3rem;background:${ac};color:${tc}">${initials(client.name)}</div>
           <div>
-            <div style="font-weight:700;font-size:1.15rem;font-family:var(--ft);margin-bottom:2px">\${esc(client.name)}</div>
-            <div style="font-size:0.85rem;color:var(--text2)">\${esc(client.email)} \${client.phone ? \`· \${esc(client.phone)}\` : ''}</div>
+            <div style="font-weight:700;font-size:1.15rem;font-family:var(--ft);margin-bottom:2px">${esc(client.name)}</div>
+            <div style="font-size:0.85rem;color:var(--text2)">${esc(client.email)} ${client.phone ? `· ${esc(client.phone)}` : ''}</div>
           </div>
         </div>
         <h4 style="font-size:0.8rem;text-transform:uppercase;color:var(--text3);margin-bottom:14px;letter-spacing:1px;font-weight:700">Últimos Agendamentos</h4>
         <div style="max-height:300px;overflow-y:auto;padding-right:5px">
-          \${histHtml}
+          ${histHtml}
         </div>
       </div>
-    </div>\`;
+    </div>`;
   },
 
   // --- Métodos PIX ---
