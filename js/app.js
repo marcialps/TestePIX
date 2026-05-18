@@ -271,7 +271,7 @@ const rNoTenant = () => `
     </p>
 
     <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:60px;">
-      <button class="btn btn-primary btn-lg" style="box-shadow:var(--shg);font-size:1.05rem;padding:16px 36px;border-radius:100px" onclick="Nav.go('register')">✦ Quero Escalar Minha Barbearia</button>
+      <button class="btn btn-primary btn-lg" style="box-shadow:var(--shg);font-size:1.05rem;padding:16px 36px;border-radius:100px" onclick="window.open('https://wa.me/5592137686', '_blank')">✦ Quero Escalar Minha Barbearia</button>
     </div>
 
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px;text-align:left;">
