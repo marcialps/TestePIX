@@ -696,15 +696,15 @@ const rAdmDashCal = () => {
             const baseColor = colors[colorIdx];
             
             const isDone = apt.status === 'concluido';
-            const bg = isDone ? 'var(--bg3)' : `${baseColor}22`;
-            const border = isDone ? 'var(--border)' : baseColor;
-            const textC = isDone ? 'var(--text2)' : baseColor;
+            const bg = isDone ? 'rgba(34,197,94,0.15)' : `${baseColor}22`;
+            const border = isDone ? '#22c55e' : baseColor;
+            const textC = isDone ? '#4ade80' : baseColor;
             const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
             
-            evs += `<div class="dash-cal-event" style="top:${top}px;height:${height}px;background:${bg};border-left-color:${border};opacity:${isDone?0.6:1}" onclick="App.dashAptClick('${apt.id}')">
+            evs += `<div class="dash-cal-event" style="top:${top}px;height:${height}px;background:${bg};border-left-color:${border};opacity:${isDone?0.8:1}" onclick="App.dashAptClick('${apt.id}')">
               <div class="dash-cal-event-title" style="color:${textC}">${esc(clName)}</div>
               <div class="dash-cal-event-sub">${esc(sv?.name||'—')} · ${esc(pr?.name||'—')}</div>
-              ${isDone ? '<span class="cal-badge">Concluído</span>' : ''}
+              ${isDone ? '<span class="cal-badge" style="background:#22c55e;color:#000">Concluído</span>' : ''}
             </div>`;
           });
           
@@ -1630,7 +1630,7 @@ export const App = {
         <h3 style="font-size:1.2rem;font-weight:700;margin-bottom:5px">${esc(clName)}</h3>
         <p style="color:var(--text2);margin-bottom:20px">${esc(sv?.name||'—')} com ${esc(pr?.name||'—')}<br>${fmtDate(apt.date)} às ${apt.time}</p>
         
-        ${!isDone ? `<button class="btn btn-success w-full" style="margin-bottom:10px" onclick="App.closeModal();App.admComplete('${apt.id}')">✓ Marcar como Concluído</button>` : ''}
+        ${!isDone ? `<button class="btn btn-success w-full" style="margin-bottom:10px" onclick="App.closeModal();App.admComplete('${apt.id}')">✓ Marcar como Concluído</button>` : `<button class="btn btn-success w-full" style="margin-bottom:10px;opacity:0.9;cursor:default" disabled>✓ Serviço Concluído</button>`}
         ${apt.status !== 'cancelado' && !isDone ? `<button class="btn btn-danger w-full btn-outline" onclick="App.closeModal();App.admCancel('${apt.id}')">✕ Cancelar Agendamento</button>` : ''}
       </div>
     </div>`;
