@@ -250,14 +250,50 @@ const rRegister = () => `
 </div>`;
 
 const rNoTenant = () => `
-<div class="auth-page">
-  <div class="auth-card" style="text-align:center">
-    <div class="auth-logo-wrap" style="background:var(--bg4);color:var(--text2);box-shadow:none">❓</div>
-    <h2 class="auth-title">Barbearia não encontrada</h2>
-    <p class="auth-sub" style="margin-bottom:0">Por favor, acesse através do link fornecido pelo seu barbeiro. Ex: ?b=nome-da-barbearia</p>
-    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:14px">
-      <p style="font-size:.8rem;color:var(--text3);margin-bottom:8px">É dono de barbearia ou Super Admin?</p>
-      <button class="btn btn-ghost btn-sm" onclick="Nav.go('login')">Acessar Painel</button>
+<div class="page" style="min-height:100vh;display:flex;flex-direction:column;justify-content:center;background:radial-gradient(ellipse at 50% 0%,rgba(201,162,39,.12) 0%,transparent 70%)">
+  
+  <div style="position:absolute;top:20px;right:20px;z-index:100">
+    <button class="btn btn-ghost" style="opacity:0.35;background:transparent;border:none;font-size:0.75rem;padding:5px 10px;text-transform:uppercase;letter-spacing:1px;transition:var(--tr)" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.35'" onclick="Nav.go('login')" title="Acesso ao Painel Administrativo">Painel</button>
+  </div>
+
+  <div class="container" style="text-align:center;max-width:900px;margin:0 auto;padding:60px 20px;">
+    
+    <div style="width:80px;height:80px;background:var(--gold);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:#000;box-shadow:0 8px 32px rgba(201,162,39,.4);margin:0 auto 28px;">💈</div>
+    
+    <span class="slabel" style="font-size:0.9rem;letter-spacing:4px;margin-bottom:14px;display:block">✦ Hora Barbearia ✦</span>
+    
+    <h1 style="font-family:var(--ft);font-size:clamp(2.8rem,7vw,4.8rem);font-weight:700;letter-spacing:1px;margin-bottom:20px;line-height:1.1;color:var(--text)">
+      Sistema de Agendamento<br><span style="color:var(--gold)">Premium</span>
+    </h1>
+    
+    <p style="font-size:1.15rem;color:var(--text2);max-width:580px;margin:0 auto 40px;line-height:1.6">
+      A solução definitiva para barbearias modernas. Escale seu negócio com gestão de agenda, controle de clientes e pagamentos via PIX automatizados.
+    </p>
+
+    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:60px;">
+      <button class="btn btn-primary btn-lg" style="box-shadow:var(--shg);font-size:1.05rem;padding:16px 36px;border-radius:100px" onclick="Nav.go('register')">✦ Quero Escalar Minha Barbearia</button>
+    </div>
+
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px;text-align:left;">
+      
+      <div class="card card-hover" style="background:rgba(24,24,24,.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.04);padding:30px">
+        <div style="width:54px;height:54px;background:rgba(245,158,11,.1);color:var(--warning);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px;">⚡</div>
+        <div style="font-family:var(--ft);font-size:1.3rem;font-weight:600;margin-bottom:10px">Integração PIX</div>
+        <p style="font-size:0.95rem;color:var(--text2);line-height:1.5">Recebimentos diretos na sua conta. O sistema gera um QR Code exclusivo para cada agendamento.</p>
+      </div>
+
+      <div class="card card-hover" style="background:rgba(24,24,24,.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.04);padding:30px">
+        <div style="width:54px;height:54px;background:rgba(34,197,94,.1);color:var(--success);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px;">📅</div>
+        <div style="font-family:var(--ft);font-size:1.3rem;font-weight:600;margin-bottom:10px">Agenda Inteligente</div>
+        <p style="font-size:0.95rem;color:var(--text2);line-height:1.5">Fim do papel e caneta. Seus clientes escolhem barbeiro e horário disponíveis de forma 100% autônoma.</p>
+      </div>
+
+      <div class="card card-hover" style="background:rgba(24,24,24,.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.04);padding:30px">
+        <div style="width:54px;height:54px;background:rgba(59,130,246,.1);color:var(--info);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px;">📊</div>
+        <div style="font-family:var(--ft);font-size:1.3rem;font-weight:600;margin-bottom:10px">Painel de Controle</div>
+        <p style="font-size:0.95rem;color:var(--text2);line-height:1.5">Tenha previsibilidade financeira e controle total sobre a performance dos seus barbeiros em tempo real.</p>
+      </div>
+
     </div>
   </div>
 </div>`;
