@@ -684,8 +684,8 @@ const rAdmDashCal = () => {
             const pr = pros.find(p => p.id === apt.professionalId);
             const dur = sv ? Number(sv.duration) : 30;
             
-            const top = (h - startHour) * 60 + m; // 1px = 1min
-            const height = dur;
+            const top = (h - startHour) * 90 + (m * 1.5); // 1.5px = 1min
+            const height = dur * 1.5;
             
             // Generate color based on pro ID to make it distinct
             const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e'];
@@ -702,9 +702,11 @@ const rAdmDashCal = () => {
             const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
             
             evs += `<div class="dash-cal-event" style="top:${top}px;height:${height}px;background:${bg};border-left-color:${border};opacity:${isDone?0.8:1}" onclick="App.dashAptClick('${apt.id}')">
-              <div class="dash-cal-event-title" style="color:${textC}">${esc(clName)}</div>
-              <div class="dash-cal-event-sub">${esc(sv?.name||'—')} · ${esc(pr?.name||'—')}</div>
-              ${isDone ? '<span class="cal-badge" style="background:#22c55e;color:#000">Concluído</span>' : ''}
+              <div class="dash-cal-event-head">
+                <div class="dash-cal-event-title" style="color:${textC}">${isDone ? '✓ ' : ''}${esc(clName)}</div>
+                <div class="dash-cal-event-time" style="color:${textC}">${p2(h)}:${p2(m)}</div>
+              </div>
+              <div class="dash-cal-event-sub" style="color:${textC}">${esc(sv?.name||'—')}</div>
             </div>`;
           });
           
