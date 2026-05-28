@@ -190,7 +190,8 @@ const rNavbar = () => {
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
       {h:'admin-clients',l:'Clientes',i:'👥'},
       {h:'admin-reports',l:'Relatórios',i:'📊'},
-      {h:'admin-pix',l:'Configurações PIX',i:'⚡'}
+      {h:'admin-pix',l:'Configurações PIX',i:'⚡'},
+      {h:'admin-reminders',l:'Lembretes Whats',i:'💬'}
     ];
   } else {
     desktopLinks = [
@@ -658,6 +659,7 @@ const rAdmLayout = (active, content) => {
     {id:'admin-clients',i:'👥',l:'Clientes'},
     {id:'admin-reports',i:'📊',l:'Relatórios'},
     {id:'admin-pix',i:'⚡',l:'Configurações PIX'},
+    {id:'admin-reminders',i:'💬',l:'Lembretes Whats'},
   ];
   return `
 <div class="adm-layout">
@@ -1032,6 +1034,162 @@ const rAdmPix = () => {
   </div>`);
 };
 
+/* =====================================================
+   LEMBRETES WHATSAPP
+===================================================== */
+const rAdmReminders = () => {
+  const filter = App._remindersFilter || 'hoje';
+  const today = todayStr();
+  
+  // Calcular data de amanhã
+  const tomorrow = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  })();
+
+  const allConfirmed = DB.apts()
+    .filter(a => a.status === 'confirmado')
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+
+  let filtered = [];
+  if (filter === 'hoje') {
+    filtered = allConfirmed.filter(a => a.date === today);
+  } else if (filter === 'amanha') {
+    filtered = allConfirmed.filter(a => a.date === tomorrow);
+  } else {
+    filtered = allConfirmed;
+  }
+
+  const svcs = DB.services();
+  const pros = DB.pros();
+
+  const buildWaLink = (apt) => {
+    const client = _tenantUsers.find(u => u.id === apt.userId);
+    if (!client?.phone) return null;
+    const sv = svcs.find(s => s.id === apt.serviceId);
+    const pr = pros.find(p => p.id === apt.professionalId);
+    
+    const cleanPhone = client.phone.replace(/\D/g, '');
+    const phone = `55${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}`;
+    
+    const clientName = client.name?.split(' ')[0] || client.name || 'Cliente';
+    const svcName = sv?.name || 'serviço';
+    const barberName = pr?.name?.split(' ')[0] || pr?.name || 'nosso profissional';
+    const time = apt.time || '';
+    
+    let dateRef = '';
+    if (apt.date === today) {
+      dateRef = `hoje às ${time}`;
+    } else if (apt.date === tomorrow) {
+      dateRef = `amanhã às ${time}`;
+    } else {
+      dateRef = `no dia ${fmtDate(apt.date)} às ${time}`;
+    }
+
+    const msg = `Olá ${clientName}, tudo bem? 😊\n\nPassando para confirmar seu horário de *${svcName}* ${dateRef} com *${barberName}*. ✂️\n\nPodemos confirmar? Qualquer dúvida é só responder por aqui! 💈`;
+    
+    return `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`;
+  };
+
+  const tabs = [
+    { id: 'hoje', l: `Hoje`, count: allConfirmed.filter(a => a.date === today).length },
+    { id: 'amanha', l: 'Amanhã', count: allConfirmed.filter(a => a.date === tomorrow).length },
+    { id: 'todos', l: 'Todos Confirmados', count: allConfirmed.length },
+  ];
+
+  const rowsHtml = filtered.length === 0
+    ? `<div class="empty" style="padding:52px 20px">
+        <div class="empty-ico">💬</div>
+        <div class="empty-t">Nenhum agendamento ${filter === 'hoje' ? 'para hoje' : filter === 'amanha' ? 'para amanhã' : 'confirmado'}</div>
+        <div class="empty-d">Quando houver agendamentos confirmados, eles aparecerão aqui.</div>
+      </div>`
+    : filtered.map(apt => {
+        const client = _tenantUsers.find(u => u.id === apt.userId);
+        const sv = svcs.find(s => s.id === apt.serviceId);
+        const pr = pros.find(p => p.id === apt.professionalId);
+        const waLink = buildWaLink(apt);
+        const hasPhone = !!client?.phone;
+        const clientName = client?.name || apt.clientName || 'Cliente';
+        const ac = avColor(clientName);
+        const tc = ac === '#C9A227' ? '#000' : '#fff';
+        
+        const dateLabel = apt.date === today
+          ? `<span style="color:var(--gold);font-weight:700">Hoje</span>, ${apt.time}`
+          : apt.date === tomorrow
+          ? `<span style="color:var(--info);font-weight:700">Amanhã</span>, ${apt.time}`
+          : `${fmtDate(apt.date)}, ${apt.time}`;
+
+        return `<tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="uavatar" style="background:${ac};color:${tc};flex-shrink:0">${initials(clientName)}</div>
+              <div>
+                <div style="font-weight:600;font-size:.9rem">${esc(clientName)}</div>
+                <div style="font-size:.78rem;color:var(--text2)">${esc(client?.phone || '—')}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div style="font-weight:500">${esc(sv?.name || '—')}</div>
+            <div style="font-size:.78rem;color:var(--text2)">✂ ${esc(pr?.name || '—')}</div>
+          </td>
+          <td>${dateLabel}</td>
+          <td>
+            ${waLink
+              ? `<a href="${waLink}" target="_blank" class="btn btn-sm" id="wa-btn-${apt.id}" style="background:#25d366;color:#fff;gap:6px;font-weight:700;box-shadow:0 2px 8px rgba(37,211,102,.3);transition:all .2s ease" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(37,211,102,.45)'" onmouseout="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(37,211,102,.3)'">
+                  ${wsIcon} Enviar Lembrete
+                </a>`
+              : `<span style="font-size:.78rem;color:var(--text3);display:flex;align-items:center;gap:5px">
+                  <span>⚠</span> Sem telefone
+                </span>`
+            }
+          </td>
+        </tr>`;
+      }).join('');
+
+  return rAdmLayout('admin-reminders', `
+  <div class="ph">
+    <div>
+      <h1 class="ptitle">💬 Lembretes WhatsApp</h1>
+      <p class="psub">Envie lembretes personalizados para seus clientes com um clique — 100% gratuito</p>
+    </div>
+  </div>
+
+  <!-- Informativo -->
+  <div style="background:rgba(37,211,102,.07);border:1px solid rgba(37,211,102,.25);border-radius:var(--r2);padding:12px 16px;margin-bottom:22px;display:flex;align-items:center;gap:12px">
+    <span style="font-size:1.3rem;flex-shrink:0">💡</span>
+    <span style="font-size:.85rem;color:var(--text2)">Clique em <strong style="color:#25d366">Enviar Lembrete</strong> para abrir o WhatsApp com a mensagem já preenchida. Basta apertar <strong style="color:var(--text)">Enviar</strong> no WhatsApp.</span>
+  </div>
+
+  <!-- Filtros -->
+  <div class="tabs" style="margin-bottom:22px">
+    ${tabs.map(t => `
+      <div class="tab ${filter === t.id ? 'active' : ''}" onclick="App.setRemindersFilter('${t.id}')" style="cursor:pointer;display:flex;align-items:center;gap:7px">
+        ${t.l}
+        <span style="background:${filter === t.id ? 'var(--gold)' : 'var(--bg4)'};color:${filter === t.id ? '#000' : 'var(--text2)'};border-radius:100px;padding:1px 8px;font-size:.72rem;font-weight:700;transition:all .2s">${t.count}</span>
+      </div>`).join('')}
+  </div>
+
+  <!-- Tabela -->
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Serviço / Profissional</th>
+          <th>Data &amp; Hora</th>
+          <th>Ação</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+    </table>
+  </div>
+  `);
+};
+
 const rAdmReports = () => {
   const all = DB.apts().filter(a => a.status !== 'cancelado');
   const filter = App._reportFilter || 'mes';
@@ -1232,6 +1390,7 @@ export const App = {
     else if(hash==='admin-clients') content=rAdmClients();
     else if(hash==='admin-reports') content=rAdmReports();
     else if(hash==='admin-pix') content=rAdmPix();
+    else if(hash==='admin-reminders') content=rAdmReminders();
     else content = rHome();
 
     this._draw(app, rNavbar() + `<div style="flex:1">${content}</div>`);
@@ -1987,6 +2146,12 @@ export const App = {
   // --- Relatórios ---
   changeReportFilter(filter){
     this._reportFilter = filter;
+    this.render();
+  },
+
+  // --- Lembretes WhatsApp ---
+  setRemindersFilter(filter){
+    this._remindersFilter = filter;
     this.render();
   },
 
