@@ -45,9 +45,18 @@ const avColor = name => {
 const esc = (str) => String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const wsIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.17-.478 1.338-.94.166-.463.166-.86.117-.94-.049-.08-.182-.133-.38-.232z"/></svg>`;
 
+const formatWorkingHours = (wh) => {
+  if (!wh) return '';
+  let res = `${wh.start || '—'} – ${wh.end || '—'}`;
+  if (wh.start2 && wh.end2) {
+    res += ` / ${wh.start2} – ${wh.end2}`;
+  }
+  return res;
+};
+
 /* =====================================================
    TOAST
-===================================================== */
+   ===================================================== */
 const T = {
   show(msg, type='s'){
     const icons = {s:'✓',e:'✕',w:'⚠',i:'ℹ'};
@@ -68,20 +77,42 @@ const T = {
 
 /* =====================================================
    DISPONIBILIDADE
-===================================================== */
+   ===================================================== */
 const Avail = {
   slots(proId, date){
     const pro=DB.pros().find(p=>p.id===proId);
     if(!pro) return [];
     const dow=new Date(date+'T12:00:00').getDay();
     if(!pro.workingDays.includes(dow)) return [];
-    const [sh,sm]=pro.workingHours.start.split(':').map(Number);
-    const [eh,em]=pro.workingHours.end.split(':').map(Number);
-    const s=sh*60+sm, e=eh*60+em, out=[];
-    for(let m=s;m<e;m+=30){
-      const h=Math.floor(m/60), mn=m%60;
-      out.push(`${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`);
+    
+    const out=[];
+    
+    // Turno 1 (Manhã)
+    if (pro.workingHours?.start && pro.workingHours?.end) {
+      const [sh,sm]=pro.workingHours.start.split(':').map(Number);
+      const [eh,em]=pro.workingHours.end.split(':').map(Number);
+      const s=sh*60+sm, e=eh*60+em;
+      for(let m=s;m<e;m+=30){
+        const h=Math.floor(m/60), mn=m%60;
+        out.push(`${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`);
+      }
     }
+    
+    // Turno 2 (Tarde)
+    if (pro.workingHours?.start2 && pro.workingHours?.end2) {
+      const [sh2,sm2]=pro.workingHours.start2.split(':').map(Number);
+      const [eh2,em2]=pro.workingHours.end2.split(':').map(Number);
+      const s2=sh2*60+sm2, e2=eh2*60+em2;
+      for(let m=s2;m<e2;m+=30){
+        const h=Math.floor(m/60), mn=m%60;
+        const timeStr = `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+        if (!out.includes(timeStr)) {
+          out.push(timeStr);
+        }
+      }
+    }
+    
+    out.sort();
     return out;
   },
   canBook(proId, date, time, dur, skipId=null){
@@ -139,10 +170,40 @@ const rNavbar = () => {
   const isAdm=Auth.isAdmin();
   const isSuper=Auth.isSuperAdmin();
   
-  let links = [];
-  if(isSuper) links = [{h:'superadmin',l:'Super Admin',i:'👑'}];
-  else if(isAdm) links = [{h:'admin',l:'Dashboard',i:'◈'},{h:'admin-services',l:'Serviços',i:'✦'},{h:'admin-barbers',l:'Barbeiros',i:'✂'},{h:'admin-appointments',l:'Agendamentos',i:'📅'}];
-  else links = [{h:'home',l:'Início',i:'⌂'},{h:'booking',l:'Agendar',i:'＋'},{h:'appointments',l:'Meus Agendamentos',i:'📅'}];
+  let desktopLinks = [];
+  let mobileLinks = [];
+  
+  if(isSuper) {
+    desktopLinks = [{h:'superadmin',l:'Super Admin',i:'👑'}];
+    mobileLinks = [{h:'superadmin',l:'Super Admin',i:'👑'}];
+  } else if(isAdm) {
+    desktopLinks = [
+      {h:'admin',l:'Dashboard',i:'◈'},
+      {h:'admin-services',l:'Serviços',i:'✦'},
+      {h:'admin-barbers',l:'Barbeiros',i:'✂'},
+      {h:'admin-appointments',l:'Agendamentos',i:'📅'}
+    ];
+    mobileLinks = [
+      {h:'admin',l:'Dashboard',i:'◈'},
+      {h:'admin-services',l:'Serviços',i:'✦'},
+      {h:'admin-barbers',l:'Barbeiros',i:'✂'},
+      {h:'admin-appointments',l:'Agendamentos',i:'📅'},
+      {h:'admin-clients',l:'Clientes',i:'👥'},
+      {h:'admin-reports',l:'Relatórios',i:'📊'},
+      {h:'admin-pix',l:'Configurações PIX',i:'⚡'}
+    ];
+  } else {
+    desktopLinks = [
+      {h:'home',l:'Início',i:'⌂'},
+      {h:'booking',l:'Agendar',i:'＋'},
+      {h:'appointments',l:'Meus Agendamentos',i:'📅'}
+    ];
+    mobileLinks = [
+      {h:'home',l:'Início',i:'⌂'},
+      {h:'booking',l:'Agendar',i:'＋'},
+      {h:'appointments',l:'Meus Agendamentos',i:'📅'}
+    ];
+  }
   
   const u=Auth.cur;
   const ac=avColor(u.name);
@@ -157,7 +218,7 @@ const rNavbar = () => {
       <span>${esc(logoText)}</span>
     </div>
     <ul class="nb-nav">
-      ${links.map(l=>`<li><a href="#${l.h}" class="${hash===l.h?'active':''}">${l.i} ${l.l}</a></li>`).join('')}
+      ${desktopLinks.map(l=>`<li><a href="#${l.h}" class="${hash===l.h?'active':''}">${l.i} ${l.l}</a></li>`).join('')}
     </ul>
     <div class="nb-right">
       <div class="user-pill" onclick="App.toggleUserDD()" id="uPill">
@@ -172,7 +233,7 @@ const rNavbar = () => {
   </div>
 </nav>
 <div class="mob-menu" id="mobMenu">
-  ${links.map(l=>`<a href="#${l.h}" class="${hash===l.h?'active':''}" onclick="App.closeMob()">${l.i} ${l.l}</a>`).join('')}
+  ${mobileLinks.map(l=>`<a href="#${l.h}" class="${hash===l.h?'active':''}" onclick="App.closeMob()">${l.i} ${l.l}</a>`).join('')}
   <div style="height:1px;background:var(--border);margin:8px 0"></div>
   <div style="padding:10px 14px;display:flex;align-items:center;gap:11px">
     <div class="uavatar" style="background:${ac};color:${tc};width:38px;height:38px;font-size:.9rem">${initials(u.name)}</div>
@@ -399,10 +460,11 @@ const rBkS2 = () => {
   <div class="grid g3" style="margin-bottom:22px">
     ${pros.map(p=>{
       const ac=avColor(p.name), tc=ac==='#C9A227'?'#000':'#fff';
+      const bgImg = p.photo ? `background-image:url(${p.photo});background-size:cover;background-position:center;` : '';
       return `<div class="brb-card ${BS.pro?.id===p.id?'sel':''}" onclick="App.selPro('${p.id}')">
-        <div class="brb-av" style="background:${ac};color:${tc}">${initials(p.name)}</div>
+        <div class="brb-av" style="background:${ac};color:${tc};${bgImg}">${p.photo ? '' : initials(p.name)}</div>
         <div class="brb-name">${esc(p.name)}</div>
-        <div style="font-size:.72rem;color:var(--text2);margin-top:10px">🕐 ${p.workingHours.start} – ${p.workingHours.end}</div>
+        <div style="font-size:.72rem;color:var(--text2);margin-top:10px">🕐 ${formatWorkingHours(p.workingHours)}</div>
       </div>`;
     }).join('')}
   </div>
@@ -600,7 +662,7 @@ const rAdmLayout = (active, content) => {
   return `
 <div class="adm-layout">
   <div class="adm-mob-nav">
-    ${items.map(it=>`<button class="btn ${active===it.id?'btn-outline':'btn-ghost'} btn-sm" onclick="Nav.go('${it.id}')">${it.i}</button>`).join('')}
+    ${items.map(it=>`<button class="btn ${active===it.id?'btn-active':''} btn-sm" onclick="Nav.go('${it.id}')">${it.i} <span>${it.l}</span></button>`).join('')}
   </div>
   <aside class="adm-sidebar">
     <div class="adm-st">Painel Barbearia</div>
@@ -659,61 +721,63 @@ const rAdmDashCal = () => {
       </div>
     </div>
     
-    <div class="dash-cal-header">
-      <div class="dash-cal-header-spacer"></div>
-      <div class="dash-cal-days">
-        ${days.map(d => `<div class="dash-cal-day-header ${dStr(d)===dStr(new Date())?'active':''}">${dNames[d.getDay()]}<br><span style="font-size:.75rem;font-weight:400">${p2(d.getDate())}/${p2(d.getMonth()+1)}</span></div>`).join('')}
+    <div class="dash-cal-scrollable-container">
+      <div class="dash-cal-header">
+        <div class="dash-cal-header-spacer"></div>
+        <div class="dash-cal-days">
+          ${days.map(d => `<div class="dash-cal-day-header ${dStr(d)===dStr(new Date())?'active':''}">${dNames[d.getDay()]}<br><span style="font-size:.75rem;font-weight:400">${p2(d.getDate())}/${p2(d.getMonth()+1)}</span></div>`).join('')}
+        </div>
       </div>
-    </div>
-
-    <div class="dash-cal-body">
-      <div class="dash-cal-time-col">
-        ${hours.map(h => `<div class="dash-cal-time-cell">${p2(h)}:00</div>`).join('')}
-      </div>
-      <div class="dash-cal-days">
-        ${days.map(d => {
-          const ds = dStr(d);
-          const dApts = allApts.filter(a => a.date === ds);
-          
-          let evs = '';
-          dApts.forEach(apt => {
-            const [h,m] = apt.time.split(':').map(Number);
-            if(h < startHour || h > endHour) return;
+  
+      <div class="dash-cal-body">
+        <div class="dash-cal-time-col">
+          ${hours.map(h => `<div class="dash-cal-time-cell">${p2(h)}:00</div>`).join('')}
+        </div>
+        <div class="dash-cal-days">
+          ${days.map(d => {
+            const ds = dStr(d);
+            const dApts = allApts.filter(a => a.date === ds);
             
-            const sv = svcs.find(s => s.id === apt.serviceId);
-            const pr = pros.find(p => p.id === apt.professionalId);
-            const dur = sv ? Number(sv.duration) : 30;
+            let evs = '';
+            dApts.forEach(apt => {
+              const [h,m] = apt.time.split(':').map(Number);
+              if(h < startHour || h > endHour) return;
+              
+              const sv = svcs.find(s => s.id === apt.serviceId);
+              const pr = pros.find(p => p.id === apt.professionalId);
+              const dur = sv ? Number(sv.duration) : 30;
+              
+              const top = (h - startHour) * 60 + m; // 1px = 1min
+              const height = dur;
+              
+              // Generate color based on pro ID to make it distinct
+              const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e'];
+              let colorIdx = 0;
+              if(pr) {
+                colorIdx = pr.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+              }
+              const baseColor = colors[colorIdx];
+              
+              const isDone = apt.status === 'concluido';
+              const bg = isDone ? 'rgba(34,197,94,0.15)' : `${baseColor}22`;
+              const border = isDone ? '#22c55e' : baseColor;
+              const textC = isDone ? '#4ade80' : baseColor;
+              const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
+              
+              evs += `<div class="dash-cal-event" style="top:${top}px;height:${height}px;background:${bg};border-left-color:${border};opacity:${isDone?0.8:1}" onclick="App.dashAptClick('${apt.id}')">
+                <div class="dash-cal-event-title" style="color:${textC}">${isDone ? '✓ ' : ''}${esc(clName)}</div>
+                <div class="dash-cal-event-sub" style="color:${textC}">${esc(sv?.name||'—')} às ${p2(h)}:${p2(m)}</div>
+              </div>`;
+            });
             
-            const top = (h - startHour) * 60 + m; // 1px = 1min
-            const height = dur;
-            
-            // Generate color based on pro ID to make it distinct
-            const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e'];
-            let colorIdx = 0;
-            if(pr) {
-              colorIdx = pr.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-            }
-            const baseColor = colors[colorIdx];
-            
-            const isDone = apt.status === 'concluido';
-            const bg = isDone ? 'rgba(34,197,94,0.15)' : `${baseColor}22`;
-            const border = isDone ? '#22c55e' : baseColor;
-            const textC = isDone ? '#4ade80' : baseColor;
-            const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
-            
-            evs += `<div class="dash-cal-event" style="top:${top}px;height:${height}px;background:${bg};border-left-color:${border};opacity:${isDone?0.8:1}" onclick="App.dashAptClick('${apt.id}')">
-              <div class="dash-cal-event-title" style="color:${textC}">${isDone ? '✓ ' : ''}${esc(clName)}</div>
-              <div class="dash-cal-event-sub" style="color:${textC}">${esc(sv?.name||'—')} às ${p2(h)}:${p2(m)}</div>
+            return `<div class="dash-cal-day-col">
+              <div class="dash-cal-grid-lines">
+                ${hours.map(() => '<div class="dash-cal-grid-line"></div>').join('')}
+              </div>
+              ${evs}
             </div>`;
-          });
-          
-          return `<div class="dash-cal-day-col">
-            <div class="dash-cal-grid-lines">
-              ${hours.map(() => '<div class="dash-cal-grid-line"></div>').join('')}
-            </div>
-            ${evs}
-          </div>`;
-        }).join('')}
+          }).join('')}
+        </div>
       </div>
     </div>
   </div>`;
@@ -784,15 +848,16 @@ const rAdmBarbers = () => {
   <div class="grid g2">
     ${pros.map(p=>{
       const ac=avColor(p.name), tc=ac==='#C9A227'?'#000':'#fff';
+      const bgImg = p.photo ? `background-image:url(${p.photo});background-size:cover;background-position:center;` : '';
       return `
       <div class="card card-hover">
         <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:14px">
-          <div class="brb-av" style="background:${ac};color:${tc};flex-shrink:0">${initials(p.name)}</div>
+          <div class="brb-av" style="background:${ac};color:${tc};flex-shrink:0;${bgImg}">${p.photo ? '' : initials(p.name)}</div>
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:7px">
               <div>
                 <div style="font-weight:700;font-family:var(--ft);font-size:1rem">${esc(p.name)}</div>
-                <div style="font-size:.75rem;color:var(--text2)">🕐 ${p.workingHours.start} – ${p.workingHours.end}</div>
+                <div style="font-size:.75rem;color:var(--text2)">🕐 ${formatWorkingHours(p.workingHours)}</div>
               </div>
               <div style="display:flex;gap:5px;flex-shrink:0">
                 <button class="btn btn-ghost btn-sm btn-icon" onclick="App.openBrbModal('${p.id}')">✎</button>
@@ -1559,17 +1624,52 @@ export const App = {
   
   openBrbModal(id=null){
     const p=id?DB.pros().find(x=>x.id===id):null; const dn=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    let currentPhotoBase64 = p?.photo || '';
+    
     document.getElementById('modalRoot').innerHTML = `
     <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
-      <div class="modal">
+      <div class="modal" style="max-height: 95vh;">
         <div class="modal-head"><h3 class="modal-title">${p?'Editar Barbeiro':'Novo Barbeiro'}</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
         <form id="brbFrm">
+          <!-- Área de visualização e controle da foto -->
+          <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:20px;gap:10px">
+            <div id="brbPhotoPreview" class="brb-av" style="margin:0;background:${p?avColor(p.name):'var(--bg3)'};color:${p?((avColor(p.name)==='#C9A227')?'#000':'#fff'):'var(--text)'};${p?.photo ? `background-image:url(${p.photo});background-size:cover;background-position:center;` : ''}">
+              ${p?.photo ? '' : (p ? initials(p.name) : '💈')}
+            </div>
+            
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn btn-ghost btn-sm" id="btnUploadPhoto">📁 Foto</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btnCameraPhoto">📸 Câmera</button>
+              <button type="button" class="btn btn-danger btn-sm" id="btnRemovePhoto" style="${p?.photo ? '' : 'display:none'}">✕ Remover</button>
+            </div>
+            <input type="file" id="brbPhotoFile" accept="image/*" style="display:none">
+          </div>
+          
+          <!-- Área do streaming da câmera -->
+          <div id="cameraArea" style="display:none;margin-bottom:18px;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:12px;text-align:center">
+            <video id="videoElement" autoplay playsinline style="width:100%;max-width:240px;border-radius:8px;background:#000;display:block;margin:0 auto 10px"></video>
+            <div style="display:flex;gap:10px;justify-content:center">
+              <button type="button" class="btn btn-primary btn-sm" id="btnCapture">📸 Capturar</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btnCancelCamera">Cancelar</button>
+            </div>
+          </div>
+
           <div class="fg"><label class="flabel">Nome *</label><input type="text" name="name" class="fc" value="${esc(p?.name||'')}" required></div>
           <div class="fg"><label class="flabel">Especialidades (separadas por vírgula)</label><input type="text" name="specs" class="fc" value="${esc((p?.specialties||[]).join(', '))}"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-            <div class="fg"><label class="flabel">Entrada</label><input type="time" name="start" class="fc" value="${p?.workingHours?.start||'09:00'}"></div>
-            <div class="fg"><label class="flabel">Saída</label><input type="time" name="end" class="fc" value="${p?.workingHours?.end||'18:00'}"></div>
+          
+          <!-- Turnos de Trabalho -->
+          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:8px">🕐 Turno 1 (Manhã)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div class="fg" style="margin-bottom:0"><label class="flabel">Entrada</label><input type="time" name="start" class="fc" value="${p?.workingHours?.start||'09:00'}"></div>
+            <div class="fg" style="margin-bottom:0"><label class="flabel">Saída</label><input type="time" name="end" class="fc" value="${p?.workingHours?.end||'12:00'}"></div>
           </div>
+          
+          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:8px">🕐 Turno 2 (Tarde) - Opcional</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+            <div class="fg" style="margin-bottom:0"><label class="flabel">Entrada</label><input type="time" name="start2" class="fc" value="${p?.workingHours?.start2||''}"></div>
+            <div class="fg" style="margin-bottom:0"><label class="flabel">Saída</label><input type="time" name="end2" class="fc" value="${p?.workingHours?.end2||''}"></div>
+          </div>
+
           <div class="fg"><label class="flabel">Dias de trabalho</label>
             <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:5px">
               ${dn.map((d,i)=>`<label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;font-size:.82rem"><input type="checkbox" name="wd" value="${i}" ${(p?.workingDays||[1,2,3,4,5]).includes(i)?'checked':''}>${d}</label>`).join('')}
@@ -1579,11 +1679,137 @@ export const App = {
         </form>
       </div>
     </div>`;
+
+    const previewEl = document.getElementById('brbPhotoPreview');
+    const uploadBtn = document.getElementById('btnUploadPhoto');
+    const cameraBtn = document.getElementById('btnCameraPhoto');
+    const removeBtn = document.getElementById('btnRemovePhoto');
+    const fileInput = document.getElementById('brbPhotoFile');
+    const cameraArea = document.getElementById('cameraArea');
+    const videoEl = document.getElementById('videoElement');
+    const captureBtn = document.getElementById('btnCapture');
+    const cancelCameraBtn = document.getElementById('btnCancelCamera');
+
+    const resizeAndCrop = (imageOrVideo, isVideo = false) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 300;
+      canvas.height = 300;
+      const ctx = canvas.getContext('2d');
+      
+      let w = isVideo ? imageOrVideo.videoWidth : imageOrVideo.width;
+      let h = isVideo ? imageOrVideo.videoHeight : imageOrVideo.height;
+      
+      const size = Math.min(w, h);
+      const sx = (w - size) / 2;
+      const sy = (h - size) / 2;
+      
+      ctx.drawImage(imageOrVideo, sx, sy, size, size, 0, 0, 300, 300);
+      return canvas.toDataURL('image/jpeg', 0.82);
+    };
+
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const base64 = resizeAndCrop(img, false);
+          currentPhotoBase64 = base64;
+          previewEl.style.backgroundImage = `url(${base64})`;
+          previewEl.style.backgroundSize = 'cover';
+          previewEl.style.backgroundPosition = 'center';
+          previewEl.innerHTML = '';
+          removeBtn.style.display = 'inline-flex';
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    uploadBtn.onclick = () => fileInput.click();
+
+    cameraBtn.onclick = async () => {
+      try {
+        if (window._currentCameraStream) {
+          window._currentCameraStream.getTracks().forEach(t => t.stop());
+        }
+        window._currentCameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        videoEl.srcObject = window._currentCameraStream;
+        cameraArea.style.display = 'block';
+        cameraBtn.disabled = true;
+      } catch (err) {
+        T.err('Não foi possível acessar a câmera: ' + err.message);
+      }
+    };
+
+    captureBtn.onclick = () => {
+      if (!window._currentCameraStream) return;
+      try {
+        const base64 = resizeAndCrop(videoEl, true);
+        currentPhotoBase64 = base64;
+        previewEl.style.backgroundImage = `url(${base64})`;
+        previewEl.style.backgroundSize = 'cover';
+        previewEl.style.backgroundPosition = 'center';
+        previewEl.innerHTML = '';
+        removeBtn.style.display = 'inline-flex';
+        
+        // Parar câmera
+        window._currentCameraStream.getTracks().forEach(t => t.stop());
+        window._currentCameraStream = null;
+        cameraArea.style.display = 'none';
+        cameraBtn.disabled = false;
+      } catch (err) {
+        T.err('Erro ao capturar foto: ' + err.message);
+      }
+    };
+
+    cancelCameraBtn.onclick = () => {
+      if (window._currentCameraStream) {
+        window._currentCameraStream.getTracks().forEach(t => t.stop());
+        window._currentCameraStream = null;
+      }
+      cameraArea.style.display = 'none';
+      cameraBtn.disabled = false;
+    };
+
+    removeBtn.onclick = () => {
+      currentPhotoBase64 = '';
+      previewEl.style.backgroundImage = 'none';
+      previewEl.innerHTML = p ? initials(p.name) : '💈';
+      removeBtn.style.display = 'none';
+      fileInput.value = '';
+    };
+
     document.getElementById('brbFrm').onsubmit = async e => {
       e.preventDefault(); const fd=new FormData(e.target);
       const wds=Array.from(e.target.querySelectorAll('input[name="wd"]:checked')).map(el=>+el.value);
-      const data={name:fd.get('name'),specialties:fd.get('specs').split(',').map(s=>s.trim()).filter(Boolean),workingHours:{start:fd.get('start'),end:fd.get('end')},workingDays:wds};
+      
+      const workingHours = {
+        start: fd.get('start'),
+        end: fd.get('end'),
+        start2: fd.get('start2') || '',
+        end2: fd.get('end2') || ''
+      };
+
+      const data={
+        name: fd.get('name'),
+        specialties: fd.get('specs').split(',').map(s=>s.trim()).filter(Boolean),
+        workingHours: workingHours,
+        workingDays: wds,
+        photo: currentPhotoBase64
+      };
+      
       if(p) data.id = p.id;
+      
+      // Se a câmera ainda estiver aberta por engano, parar ela
+      if (window._currentCameraStream) {
+        window._currentCameraStream.getTracks().forEach(t => t.stop());
+        window._currentCameraStream = null;
+      }
+      
       await DB.savePro(data); App.closeModal(); T.ok(p?'Atualizado!':'Cadastrado!'); this.render();
     };
   },
@@ -1808,7 +2034,17 @@ export const App = {
   },
   toggleMob(){const m=document.getElementById('mobMenu');if(m)m.classList.toggle('open');},
   closeMob(){const m=document.getElementById('mobMenu');if(m)m.classList.remove('open');},
-  closeModal(){document.getElementById('modalRoot').innerHTML='';},
+  closeModal(){
+    if (window._currentCameraStream) {
+      try {
+        window._currentCameraStream.getTracks().forEach(t => t.stop());
+      } catch (err) {
+        console.warn('Error closing camera track:', err);
+      }
+      window._currentCameraStream = null;
+    }
+    document.getElementById('modalRoot').innerHTML='';
+  },
   openTenantModal(){openTenantModal();},
 
   // Init
