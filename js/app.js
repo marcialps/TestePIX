@@ -797,7 +797,10 @@ const rAdmDash = () => {
   const hasPix=!!(_tenantInfo?.pixConfig?.chave);
 
   return rAdmLayout('admin',`
-  <div class="ph"><div><h1 class="ptitle">Dashboard</h1><p class="psub">${_tenantInfo?.name||''}</p></div></div>
+  <div class="ph">
+    <div><h1 class="ptitle">Dashboard</h1><p class="psub">${_tenantInfo?.name||''}</p></div>
+    <button class="btn btn-primary" onclick="App.openQuickAptModal()">＋ Agendamento Rápido</button>
+  </div>
   <div class="stats-grid">
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Total Agendamentos</span></div><div class="scv">${all.length}</div></div>
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Receita Total</span></div><div class="scv" style="color:var(--success)">${fmt(rev)}</div></div>
@@ -934,7 +937,10 @@ const rAdmApts = () => {
   `;
 
   return rAdmLayout('admin-appointments', `
-    <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div></div>
+    <div class="ph">
+      <div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div>
+      <button class="btn btn-primary" onclick="App.openQuickAptModal()">＋ Agendamento Rápido</button>
+    </div>
     <div class="tabs" style="margin-bottom:22px">
       <div class="tab ${filter === 'dia' ? 'active' : ''}" onclick="App.setAdmAptsFilter('dia')">Hoje</div>
       <div class="tab ${filter === 'semana' ? 'active' : ''}" onclick="App.setAdmAptsFilter('semana')">Esta Semana</div>
@@ -1795,6 +1801,78 @@ export const App = {
   },
 
   // Admin Methods
+  openQuickAptModal() {
+    const svcs = DB.services();
+    const pros = DB.pros();
+    const today = todayStr();
+
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal">
+        <div class="modal-head"><h3 class="modal-title">Agendamento Rápido</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <form id="quickAptFrm">
+          <div class="fg"><label class="flabel">Nome do Cliente *</label><input type="text" name="clientName" class="fc" required placeholder="Ex: João da Silva"></div>
+          <div class="fg"><label class="flabel">Telefone (opcional)</label><input type="tel" name="clientPhone" class="fc" placeholder="(11) 99999-9999"></div>
+          <div class="fg"><label class="flabel">Serviço *</label>
+            <select name="serviceId" class="fc" required>
+              <option value="">Selecione o serviço...</option>
+              ${svcs.map(s => `<option value="${s.id}">${esc(s.name)} - ${fmt(s.price)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg"><label class="flabel">Profissional *</label>
+            <select name="professionalId" class="fc" required>
+              <option value="">Selecione o barbeiro...</option>
+              ${pros.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg" style="display:flex;gap:10px">
+            <div style="flex:1"><label class="flabel">Data *</label><input type="date" name="date" class="fc" required value="${today}"></div>
+            <div style="flex:1"><label class="flabel">Horário *</label><input type="time" name="time" class="fc" required></div>
+          </div>
+          <button type="submit" class="btn btn-primary w-full btn-lg" style="margin-top:10px">Confirmar Agendamento</button>
+        </form>
+      </div>
+    </div>`;
+
+    document.getElementById('quickAptFrm').onsubmit = async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const svcId = fd.get('serviceId');
+      const sv = svcs.find(s => s.id === svcId);
+
+      const apt = {
+        clientName: fd.get('clientName'),
+        clientPhone: fd.get('clientPhone'),
+        serviceId: svcId,
+        professionalId: fd.get('professionalId'),
+        date: fd.get('date'),
+        time: fd.get('time'),
+        status: 'confirmado',
+        createdAt: new Date().toISOString(),
+        price: sv ? sv.price : 0,
+        pixStatus: 'nao_aplicavel',
+        userId: null
+      };
+
+      const btn = e.target.querySelector('button[type="submit"]');
+      const oldTxt = btn.innerHTML;
+      btn.innerHTML = 'Salvando...';
+      btn.disabled = true;
+
+      try {
+        await DB.addApt(apt);
+        App.closeModal();
+        App.showToast('Agendamento rápido criado com sucesso!');
+        App.render();
+      } catch (err) {
+        console.error(err);
+        App.showToast('Erro ao criar agendamento.', 'error');
+        btn.innerHTML = oldTxt;
+        btn.disabled = false;
+      }
+    };
+  },
+
   openSvcModal(id=null){
     const s=id?DB.services().find(x=>x.id===id):null;
     document.getElementById('modalRoot').innerHTML = `
