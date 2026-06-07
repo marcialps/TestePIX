@@ -818,7 +818,22 @@ const rAdmDashCal = () => {
               </div>`;
             });
             
-            return `<div claconst rAdmDash = () => {
+            return `<div class="dash-cal-day-col">
+              <div class="dash-cal-grid-lines">
+                ${hours.map(() => '<div class="dash-cal-grid-line"></div>').join('')}
+              </div>
+              ${evs}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  return calHtml;
+};
+
+const rAdmDash = () => {
   const all=DB.apts(), pros=DB.pros(), svcs=DB.services();
   const td=todayStr();
   const now = new Date();
@@ -876,7 +891,6 @@ const rAdmDashCal = () => {
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Confirmados Futuros</span></div><div class="scv" style="color:var(--info)">${conf.length}</div></div>
     ${hasPix?`<div class="stat-card" style="border-color:rgba(245,158,11,.35)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">⏳ PIX Aguardando</span></div><div class="scv" style="color:var(--warning)">${pixPend.length}</div></div>
     <div class="stat-card" style="border-color:rgba(34,197,94,.3)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">✅ PIX Confirmados</span></div><div class="scv" style="color:var(--success)">${pixOk.length}</div></div>`:''}
-  </div>iv class="stat-card" style="border-color:rgba(34,197,94,.3)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">✅ PIX Confirmados</span></div><div class="scv" style="color:var(--success)">${pixOk.length}</div></div>`:''}
   </div>
   ${rAdmDashCal()}
   ${!hasPix?`<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:var(--r);padding:14px 18px;display:flex;align-items:center;gap:12px;margin-bottom:20px">
