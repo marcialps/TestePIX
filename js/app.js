@@ -818,41 +818,65 @@ const rAdmDashCal = () => {
               </div>`;
             });
             
-            return `<div class="dash-cal-day-col">
-              <div class="dash-cal-grid-lines">
-                ${hours.map(() => '<div class="dash-cal-grid-line"></div>').join('')}
-              </div>
-              ${evs}
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
-    </div>
-  </div>`;
-
-  return calHtml;
-};
-
-const rAdmDash = () => {
+            return `<div claconst rAdmDash = () => {
   const all=DB.apts(), pros=DB.pros(), svcs=DB.services();
   const td=todayStr();
-  const rev=all.filter(a=>a.status!=='cancelado').reduce((s,a)=>s+Number(a.price||0),0);
-  const conf=all.filter(a=>a.status==='confirmado'&&a.date>=td);
-  const pixPend=all.filter(a=>a.pixStatus==='pendente'&&a.status!=='cancelado');
-  const pixOk=all.filter(a=>a.pixStatus==='pago');
+  const now = new Date();
+  
+  const filter = App._admDashFilter || 'todos';
+  let filtered = all;
+
+  if (filter === 'dia') {
+    filtered = all.filter(a => a.date === td);
+  } else if (filter === 'semana') {
+    const start = new Date();
+    const day = start.getDay();
+    const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+    start.setDate(diff);
+    start.setHours(0,0,0,0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23,59,59,999);
+    
+    filtered = all.filter(a => {
+      const d = new Date(a.date + 'T12:00:00');
+      return d >= start && d <= end;
+    });
+  } else if (filter === 'mes') {
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    filtered = all.filter(a => {
+      const d = new Date(a.date + 'T12:00:00');
+      return d.getMonth() === month && d.getFullYear() === year;
+    });
+  }
+
+  const rev=filtered.filter(a=>a.status!=='cancelado').reduce((s,a)=>s+Number(a.price||0),0);
+  const conf=filtered.filter(a=>a.status==='confirmado'&&a.date>=td);
+  const pixPend=filtered.filter(a=>a.pixStatus==='pendente'&&a.status!=='cancelado');
+  const pixOk=filtered.filter(a=>a.pixStatus==='pago');
   const hasPix=!!(_tenantInfo?.pixConfig?.chave);
 
   return rAdmLayout('admin',`
   <div class="ph">
     <div><h1 class="ptitle">Dashboard</h1><p class="psub">${_tenantInfo?.name||''}</p></div>
-    <button class="btn btn-primary" onclick="App.openQuickAptModal()">＋ Agendamento Rápido</button>
+    <button class="btn btn-primary" onclick="App.openQuickAptModal()">+ Agendamento Rápido</button>
   </div>
+  
+  <div class="tabs" style="margin-bottom: 20px;">
+    <div class="tab ${filter === 'dia' ? 'active' : ''}" onclick="App.setAdmDashFilter('dia')">Hoje</div>
+    <div class="tab ${filter === 'semana' ? 'active' : ''}" onclick="App.setAdmDashFilter('semana')">Esta Semana</div>
+    <div class="tab ${filter === 'mes' ? 'active' : ''}" onclick="App.setAdmDashFilter('mes')">Este Mês</div>
+    <div class="tab ${filter === 'todos' ? 'active' : ''}" onclick="App.setAdmDashFilter('todos')">Todos</div>
+  </div>
+
   <div class="stats-grid">
-    <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Total Agendamentos</span></div><div class="scv">${all.length}</div></div>
+    <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Total Agendamentos</span></div><div class="scv">${filtered.length}</div></div>
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Receita Total</span></div><div class="scv" style="color:var(--success)">${fmt(rev)}</div></div>
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Confirmados Futuros</span></div><div class="scv" style="color:var(--info)">${conf.length}</div></div>
-    ${hasPix?`<div class="stat-card" style="border-color:rgba(245,158,11,.35)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">⚡ PIX Aguardando</span></div><div class="scv" style="color:var(--warning)">${pixPend.length}</div></div>
+    ${hasPix?`<div class="stat-card" style="border-color:rgba(245,158,11,.35)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">⏳ PIX Aguardando</span></div><div class="scv" style="color:var(--warning)">${pixPend.length}</div></div>
     <div class="stat-card" style="border-color:rgba(34,197,94,.3)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">✅ PIX Confirmados</span></div><div class="scv" style="color:var(--success)">${pixOk.length}</div></div>`:''}
+  </div>iv class="stat-card" style="border-color:rgba(34,197,94,.3)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">✅ PIX Confirmados</span></div><div class="scv" style="color:var(--success)">${pixOk.length}</div></div>`:''}
   </div>
   ${rAdmDashCal()}
   ${!hasPix?`<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:var(--r);padding:14px 18px;display:flex;align-items:center;gap:12px;margin-bottom:20px">
@@ -2308,6 +2332,11 @@ export const App = {
   // --- Relatórios ---
   changeReportFilter(filter){
     this._reportFilter = filter;
+    this.render();
+  },
+
+  setAdmDashFilter(filter){
+    this._admDashFilter = filter;
     this.render();
   },
 
