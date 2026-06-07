@@ -876,10 +876,40 @@ const rAdmBarbers = () => {
 const rAdmApts = () => {
   const all = [...DB.apts()].sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
   const hasPix = !!(_tenantInfo?.pixConfig?.chave);
+  const filter = App._admAptsFilter || 'todos';
 
-  const emEspera = all.filter(a => a.status === 'confirmado');
-  const concluidos = all.filter(a => a.status === 'concluido');
-  const cancelados = all.filter(a => a.status === 'cancelado');
+  let filtered = all;
+  const now = new Date();
+  const td = todayStr();
+
+  if (filter === 'dia') {
+    filtered = all.filter(a => a.date === td);
+  } else if (filter === 'semana') {
+    const start = new Date();
+    const day = start.getDay();
+    const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+    start.setDate(diff);
+    start.setHours(0,0,0,0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23,59,59,999);
+    
+    filtered = all.filter(a => {
+      const d = new Date(a.date + 'T12:00:00');
+      return d >= start && d <= end;
+    });
+  } else if (filter === 'mes') {
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    filtered = all.filter(a => {
+      const d = new Date(a.date + 'T12:00:00');
+      return d.getMonth() === month && d.getFullYear() === year;
+    });
+  }
+
+  const emEspera = filtered.filter(a => a.status === 'confirmado');
+  const concluidos = filtered.filter(a => a.status === 'concluido');
+  const cancelados = filtered.filter(a => a.status === 'cancelado');
 
   const renderSection = (title, apts, color, icon) => `
     <div style="margin-bottom: 40px;">
@@ -905,6 +935,12 @@ const rAdmApts = () => {
 
   return rAdmLayout('admin-appointments', `
     <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div></div>
+    <div class="tabs" style="margin-bottom:22px">
+      <div class="tab ${filter === 'dia' ? 'active' : ''}" onclick="App.setAdmAptsFilter('dia')">Hoje</div>
+      <div class="tab ${filter === 'semana' ? 'active' : ''}" onclick="App.setAdmAptsFilter('semana')">Esta Semana</div>
+      <div class="tab ${filter === 'mes' ? 'active' : ''}" onclick="App.setAdmAptsFilter('mes')">Este Mês</div>
+      <div class="tab ${filter === 'todos' ? 'active' : ''}" onclick="App.setAdmAptsFilter('todos')">Todos</div>
+    </div>
     ${renderSection('Em Espera', emEspera, '#3b82f6', '⏳')}
     ${renderSection('Concluídos', concluidos, '#22c55e', '✅')}
     ${renderSection('Cancelados', cancelados, '#ef4444', '✕')}
@@ -2146,6 +2182,11 @@ export const App = {
   // --- Relatórios ---
   changeReportFilter(filter){
     this._reportFilter = filter;
+    this.render();
+  },
+
+  setAdmAptsFilter(filter){
+    this._admAptsFilter = filter;
     this.render();
   },
 
