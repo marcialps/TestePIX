@@ -740,35 +740,81 @@ const rAdmDashCal = () => {
             const ds = dStr(d);
             const dApts = allApts.filter(a => a.date === ds);
             
-            let evs = '';
+            // 1. Prepare and sort events
+            const dayEvents = [];
             dApts.forEach(apt => {
               const [h,m] = apt.time.split(':').map(Number);
               if(h < startHour || h > endHour) return;
-              
               const sv = svcs.find(s => s.id === apt.serviceId);
               const pr = pros.find(p => p.id === apt.professionalId);
               const dur = sv ? Number(sv.duration) : 30;
-              
-              const top = (h - startHour) * 60 + m; // 1px = 1min
-              const height = dur;
-              
-              // Generate color based on pro ID to make it distinct
-              const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e'];
-              let colorIdx = 0;
-              if(pr) {
-                colorIdx = pr.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+              const start = (h - startHour) * 60 + m;
+              dayEvents.push({ apt, sv, pr, h, m, dur, start, end: start + dur });
+            });
+            dayEvents.sort((a,b) => a.start - b.start || a.end - b.end);
+
+            // 2. Cluster overlapping events
+            const clusters = [];
+            let currentCluster = [];
+            let clusterEnd = 0;
+            dayEvents.forEach(ev => {
+              if (currentCluster.length > 0 && ev.start >= clusterEnd) {
+                clusters.push(currentCluster);
+                currentCluster = [];
+                clusterEnd = 0;
               }
+              currentCluster.push(ev);
+              clusterEnd = Math.max(clusterEnd, ev.end);
+            });
+            if (currentCluster.length > 0) {
+              clusters.push(currentCluster);
+            }
+
+            // 3. Assign columns and width
+            clusters.forEach(cluster => {
+              const cols = [];
+              cluster.forEach(ev => {
+                let placed = false;
+                for (let i = 0; i < cols.length; i++) {
+                  if (cols[i][cols[i].length - 1].end <= ev.start) {
+                    cols[i].push(ev);
+                    ev.col = i;
+                    placed = true;
+                    break;
+                  }
+                }
+                if (!placed) {
+                  ev.col = cols.length;
+                  cols.push([ev]);
+                }
+              });
+              cluster.forEach(ev => {
+                ev.width = 100 / cols.length;
+                ev.left = ev.col * ev.width;
+              });
+            });
+
+            // Current time for blink
+            const now = new Date();
+            const isToday = dStr(now) === ds;
+            const currentMins = (now.getHours() - startHour) * 60 + now.getMinutes();
+
+            let evs = '';
+            dayEvents.forEach(ev => {
+              const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e', '#14b8a6', '#f97316', '#84cc16'];
+              // distinct color based on appointment ID
+              let colorIdx = ev.apt.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
               const baseColor = colors[colorIdx];
               
-              const isDone = apt.status === 'concluido';
-              const bg = isDone ? 'rgba(34,197,94,0.15)' : `${baseColor}22`;
-              const border = isDone ? '#22c55e' : baseColor;
-              const textC = isDone ? '#4ade80' : baseColor;
-              const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
+              const isDone = ev.apt.status === 'concluido';
+              const clName = ev.apt.userId ? _tenantUsers.find(u=>u.id===ev.apt.userId)?.name || 'Cliente' : ev.apt.clientName || 'Cliente';
               
-              evs += `<div class="dash-cal-event" style="top:${top}px;height:${height}px;background:${bg};border-left-color:${border};opacity:${isDone?0.8:1}" onclick="App.dashAptClick('${apt.id}')">
-                <div class="dash-cal-event-title" style="color:${textC}">${isDone ? '✓ ' : ''}${esc(clName)}</div>
-                <div class="dash-cal-event-sub" style="color:${textC}">${esc(sv?.name||'—')} às ${p2(h)}:${p2(m)}</div>
+              const isHappeningNow = isToday && (currentMins >= ev.start && currentMins < ev.end);
+              const blinkClass = isHappeningNow ? ' blink-event' : '';
+              
+              evs += `<div class="dash-cal-event glass-cal-event${blinkClass}" style="top:${ev.start}px;height:${ev.dur}px;left:${ev.left}%;width:calc(${ev.width}% - 4px);background-color:${baseColor};opacity:${isDone?0.5:1}" onclick="App.dashAptClick('${ev.apt.id}')">
+                <div class="dash-cal-event-title">${isDone ? '✓ ' : ''}${esc(clName)}</div>
+                <div class="dash-cal-event-sub">${esc(ev.sv?.name||'—')} às ${p2(ev.h)}:${p2(ev.m)}</div>
               </div>`;
             });
             
