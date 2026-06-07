@@ -1910,11 +1910,11 @@ export const App = {
       try {
         await DB.addApt(apt);
         App.closeModal();
-        App.showToast('Agendamento rápido criado com sucesso!');
+        T.ok('Agendamento rápido criado com sucesso!');
         App.render();
       } catch (err) {
         console.error(err);
-        App.showToast('Erro ao criar agendamento.', 'error');
+        T.err('Erro ao criar agendamento.');
         btn.innerHTML = oldTxt;
         btn.disabled = false;
       }
