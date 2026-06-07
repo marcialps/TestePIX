@@ -1012,11 +1012,13 @@ const rAptRows = (apts) => {
     else if(hasPix&&apt.pixStatus==='pendente') pixBadge=`<span class="badge b-warning" style="font-size:.65rem">⏳ Aguardando PIX</span>`;
     else if(hasPix) pixBadge=`<span class="badge b-grey" style="font-size:.65rem">— Sem PIX</span>`;
 
-    const cleanPhone = (usr?.phone || '').replace(/\D/g, '');
+    const clName = usr?.name || apt.clientName || '—';
+    const clPhone = usr?.phone || apt.clientPhone || '';
+    const cleanPhone = clPhone.replace(/\D/g, '');
     const waLink = cleanPhone ? `https://wa.me/55${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}` : null;
 
     return `<tr>
-      <td>${esc(usr?.name||'—')}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
+      <td>${esc(clName)}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
       <td>${fmtDate(apt.date)}</td><td>${apt.time}</td>
       <td><span class="badge ${bc}">${bl}</span></td>
       ${hasPix ? `<td>${pixBadge}</td>` : ''}
