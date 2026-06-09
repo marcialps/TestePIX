@@ -674,10 +674,9 @@ const rAdmLayout = (active, content) => {
     ${items.map(it=>`<button class="btn ${active===it.id?'btn-active':''} btn-sm" onclick="Nav.go('${it.id}')">${it.i} <span>${it.l}</span></button>`).join('')}
   </div>
   <aside class="adm-sidebar">
-    <div class="adm-sidebar-brand">
+    <div class="adm-sidebar-brand" id="admBrandLogo" onmouseover="App.showLogoBtnHover()" onmouseout="App.hideLogoBtnHover()" style="position:relative">
       ${renderTenantLogo(_tenantInfo?.name || 'Painel Barbearia', 'adm-logo-img') || '<div class="adm-logo-placeholder">💈</div>'}
-      <div class="adm-logo-caption">${esc(_tenantInfo?.name || 'Painel Barbearia')}</div>
-      ${showTenantEditor ? `<button type="button" class="btn btn-sm btn-ghost" style="width:100%;margin-top:8px" onclick="App.openEditTenantModal('${DB.getBarbeariaId()}')">Editar identidade</button>` : ''}
+      <button type="button" id="admLogoHoverBtn" class="btn btn-sm" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(201,162,39,.9);color:#000;display:none;opacity:0;transition:opacity .2s ease;z-index:10" onclick="App.openEditTenantModal('${DB.getBarbeariaId()}')">Alterar</button>
     </div>
     <div class="adm-st">Painel Barbearia</div>
     ${items.map(it=>`<a href="#${it.id}" class="adm-nav-item ${active===it.id?'active':''}" onclick="Nav.go('${it.id}'); return false;">${it.i} <span>${it.l}</span></a>`).join('')}
@@ -2257,6 +2256,14 @@ export const App = {
     } finally {
       if(btn) { btn.disabled = false; btn.textContent = '✓ Salvar Alterações'; }
     }
+  },
+  showLogoBtnHover(){
+    const btn = document.getElementById('admLogoHoverBtn');
+    if(btn) { btn.style.display = 'block'; setTimeout(() => btn.style.opacity = '1', 0); }
+  },
+  hideLogoBtnHover(){
+    const btn = document.getElementById('admLogoHoverBtn');
+    if(btn) { btn.style.opacity = '0'; setTimeout(() => btn.style.display = 'none', 200); }
   },
   openTenantModal(){openTenantModal();},
 
