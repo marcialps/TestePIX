@@ -252,7 +252,11 @@ const rLogin = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      ${_tenantInfo?.logoUrl ? `<img src="${_tenantInfo.logoUrl}" style="max-width:140px; max-height:140px; margin-bottom: 15px; border-radius: 12px; object-fit: contain;">` : `<div class="auth-logo-wrap">💈</div>`}
+      ${_tenantInfo?.logoUrl ? `
+        <div style="display:flex;justify-content:center;margin-bottom:18px">
+          <img src="${_tenantInfo.logoUrl}" style="max-width:180px;max-height:180px;border-radius:16px;object-fit:contain;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);">
+        </div>
+      ` : `<div class="auth-logo-wrap">💈</div>`}
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -285,7 +289,11 @@ const rRegister = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      ${_tenantInfo?.logoUrl ? `<img src="${_tenantInfo.logoUrl}" style="max-width:140px; max-height:140px; margin-bottom: 15px; border-radius: 12px; object-fit: contain;">` : `<div class="auth-logo-wrap">💈</div>`}
+      ${_tenantInfo?.logoUrl ? `
+        <div style="display:flex;justify-content:center;margin-bottom:18px">
+          <img src="${_tenantInfo.logoUrl}" style="max-width:180px;max-height:180px;border-radius:16px;object-fit:contain;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);">
+        </div>
+      ` : `<div class="auth-logo-wrap">💈</div>`}
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -368,7 +376,11 @@ const rHome = () => {
 <div class="page">
   <div class="container">
     <section class="hero">
-      ${_tenantInfo?.logoUrl ? `<div style="text-align: center; margin-bottom: 20px;"><img src="${_tenantInfo.logoUrl}" style="max-width: 200px; max-height: 200px; border-radius: 12px; object-fit: contain; box-shadow: 0 8px 32px rgba(0,0,0,0.3);"></div>` : ''}
+      ${_tenantInfo?.logoUrl ? `
+        <div style="display:flex;justify-content:center;margin-bottom:28px">
+          <img src="${_tenantInfo.logoUrl}" style="max-width:220px;max-height:220px;border-radius:20px;object-fit:contain;box-shadow:0 12px 48px rgba(201,162,39,0.25),0 4px 16px rgba(0,0,0,0.4);border:1px solid rgba(201,162,39,0.2);animation:fadeIn .5s ease;">
+        </div>
+      ` : ''}
       <span class="slabel">✦ Bem-vindo, ${esc(u.name.split(' ')[0])}</span>
       <h1>Seu estilo,<br><span>seu horário.</span></h1>
       <p>Agende agora na ${esc(_tenantInfo?.name || 'barbearia')}. Rápido, fácil e sem espera.</p>
@@ -668,21 +680,22 @@ const rAdmLayout = (active, content) => {
     ${items.map(it=>`<button class="btn ${active===it.id?'btn-active':''} btn-sm" onclick="Nav.go('${it.id}')">${it.i} <span>${it.l}</span></button>`).join('')}
   </div>
   <aside class="adm-sidebar">
-    <div style="text-align:center; margin: 15px 15px 25px 15px; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+    <div class="sidebar-logo-area">
       ${_tenantInfo?.logoUrl ? `
-        <img src="${_tenantInfo.logoUrl}" style="max-width: 100%; max-height: 100px; border-radius: 8px; margin-bottom: 10px; object-fit: contain;">
-        <label style="display:block; font-size: 0.75rem; color: var(--text2); cursor: pointer; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text2)'">
+        <label class="sidebar-logo-img-wrap" title="Clique para alterar a logo">
           <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">
-          ✏️ Alterar Logo
+          <img src="${_tenantInfo.logoUrl}" class="sidebar-logo-img" alt="Logo da barbearia">
         </label>
+        <span class="sidebar-logo-change-btn">✏️ Clique na imagem para alterar</span>
       ` : `
-        <label style="display:block; font-size: 0.8rem; color: var(--text2); cursor: pointer; border: 1px dashed var(--border); padding: 12px; border-radius: 8px; width: 100%; text-align: center; transition: 0.2s;" onmouseover="this.style.borderColor='var(--gold)'; this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'; this.style.color='var(--text2)'">
+        <label class="sidebar-logo-add-btn">
           <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">
-          📷 Adicionar Logo
+          <span style="font-size:1.8rem;display:block;margin-bottom:6px">📷</span>
+          Adicionar Logo da Barbearia
         </label>
       `}
     </div>
-    <div class="adm-st" style="margin-top: 0;">Painel Barbearia</div>
+    <div class="adm-st">Painel Barbearia</div>
     ${items.map(it=>`<a href="#${it.id}" class="adm-nav-item ${active===it.id?'active':''}" onclick="Nav.go('${it.id}'); return false;">${it.i} <span>${it.l}</span></a>`).join('')}
   </aside>
   <main class="adm-content">${content}</main>
@@ -1509,8 +1522,15 @@ export const App = {
     app.innerHTML = '<div style="padding:100px;text-align:center;color:var(--gold)">Carregando...</div>';
 
     let content = '';
-    if(hash==='login'){content=rLogin(); this._draw(app, content); this._bindAuth(); return;}
-    if(hash==='register'){content=rRegister(); this._draw(app, content); this._bindAuth(); return;}
+    if(hash==='login'){
+      // Garante que _tenantInfo é carregado mesmo sem usuário logado (para exibir a logo)
+      if(!_tenantInfo && DB.getBarbeariaId()) { _tenantInfo = await DB.refreshTenantInfo(DB.getBarbeariaId()); }
+      content=rLogin(); this._draw(app, content); this._bindAuth(); return;
+    }
+    if(hash==='register'){
+      if(!_tenantInfo && DB.getBarbeariaId()) { _tenantInfo = await DB.refreshTenantInfo(DB.getBarbeariaId()); }
+      content=rRegister(); this._draw(app, content); this._bindAuth(); return;
+    }
     if(hash==='superadmin'){ 
       content=rSuperAdmin(); this._draw(app, rNavbar() + content); 
       this._loadTenants(); return; 
