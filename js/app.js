@@ -2272,11 +2272,11 @@ export const App = {
       const file = e.target.files[0];
       if(!file) return;
       
-      const btn = document.getElementById('admLogoHoverBtn');
-      const origText = btn.textContent;
-      btn.textContent = 'Enviando...';
-      btn.style.pointerEvents = 'none';
-      btn.style.opacity = '0.6';
+      const btn = document.getElementById('admBrandLogo');
+      if (btn) {
+        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.6';
+      }
       
       try {
         const uploadData = new FormData();
@@ -2295,9 +2295,10 @@ export const App = {
       } catch(err) {
         T.err('Erro: ' + err.message);
       } finally {
-        btn.textContent = origText;
-        btn.style.pointerEvents = 'auto';
-        btn.style.opacity = '1';
+        if (btn) {
+          btn.style.pointerEvents = 'auto';
+          btn.style.opacity = '1';
+        }
       }
     };
     input.click();
