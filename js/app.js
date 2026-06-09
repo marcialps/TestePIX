@@ -408,8 +408,9 @@ const rHome = () => {
       <div class="grid g3">
         ${pros.map(p=>{
           const ac=avColor(p.name), tc=ac==='#C9A227'?'#000':'#fff';
+          const bgImg = p.photo ? `background-image:url(${p.photo});background-size:cover;background-position:center;` : '';
           return `<div class="brb-card card-hover" onclick="Nav.go('booking')">
-            <div class="brb-av" style="background:${ac};color:${tc}">${initials(p.name)}</div>
+            <div class="brb-av" style="background:${ac};color:${tc};${bgImg}">${p.photo ? '' : initials(p.name)}</div>
             <div class="brb-name">${esc(p.name)}</div>
             <div class="tags">${(p.specialties||[]).map(s=>`<span class="tag">${esc(s)}</span>`).join('')}</div>
           </div>`;
@@ -674,9 +675,14 @@ const rAdmLayout = (active, content) => {
     ${items.map(it=>`<button class="btn ${active===it.id?'btn-active':''} btn-sm" onclick="Nav.go('${it.id}')">${it.i} <span>${it.l}</span></button>`).join('')}
   </div>
   <aside class="adm-sidebar">
-    <div class="adm-sidebar-brand" id="admBrandLogo" onmouseover="App.showLogoBtnHover()" onmouseout="App.hideLogoBtnHover()" style="position:relative;cursor:pointer">
-      ${renderTenantLogo(_tenantInfo?.name || 'Painel Barbearia', 'adm-logo-img') || '<div class="adm-logo-placeholder">💈</div>'}
-      <div id="admLogoHoverBtn" class="btn btn-sm" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(201,162,39,.95);color:#000;display:none;opacity:0;transition:opacity .2s ease;z-index:10;cursor:pointer;pointer-events:auto" onclick="App.changeLogoQuick('${DB.getBarbeariaId()}')">Alterar</div>
+    <div class="adm-sidebar-brand" id="admBrandLogo" onclick="App.changeLogoQuick('${DB.getBarbeariaId()}')" title="Alterar Logo">
+      <div class="adm-logo-wrap">
+        ${renderTenantLogo(_tenantInfo?.name || 'Painel Barbearia', 'adm-logo-img') || '<div class="adm-logo-placeholder">💈</div>'}
+        <div class="adm-logo-overlay">
+          <span style="font-size:1.4rem">📷</span>
+          <span style="font-size:0.75rem;font-weight:600;margin-top:4px">Alterar Logo</span>
+        </div>
+      </div>
     </div>
     <div class="adm-st">Painel Barbearia</div>
     ${items.map(it=>`<a href="#${it.id}" class="adm-nav-item ${active===it.id?'active':''}" onclick="Nav.go('${it.id}'); return false;">${it.i} <span>${it.l}</span></a>`).join('')}
@@ -2257,22 +2263,7 @@ export const App = {
       if(btn) { btn.disabled = false; btn.textContent = '✓ Salvar Alterações'; }
     }
   },
-  showLogoBtnHover(){
-    const btn = document.getElementById('admLogoHoverBtn');
-    if(btn) { 
-      btn.style.display = 'flex';
-      btn.style.alignItems = 'center';
-      btn.style.justifyContent = 'center';
-      setTimeout(() => btn.style.opacity = '1', 10); 
-    }
-  },
-  hideLogoBtnHover(){
-    const btn = document.getElementById('admLogoHoverBtn');
-    if(btn) { 
-      btn.style.opacity = '0';
-      setTimeout(() => btn.style.display = 'none', 200); 
-    }
-  },
+
   async changeLogoQuick(slug){
     const input = document.createElement('input');
     input.type = 'file';
