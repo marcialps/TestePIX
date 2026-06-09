@@ -252,7 +252,7 @@ const rLogin = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      <div class="auth-logo-wrap">💈</div>
+      ${_tenantInfo?.logoUrl ? `<img src="${_tenantInfo.logoUrl}" style="max-width:140px; max-height:140px; margin-bottom: 15px; border-radius: 12px; object-fit: contain;">` : `<div class="auth-logo-wrap">💈</div>`}
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -285,7 +285,7 @@ const rRegister = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      <div class="auth-logo-wrap">💈</div>
+      ${_tenantInfo?.logoUrl ? `<img src="${_tenantInfo.logoUrl}" style="max-width:140px; max-height:140px; margin-bottom: 15px; border-radius: 12px; object-fit: contain;">` : `<div class="auth-logo-wrap">💈</div>`}
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -368,6 +368,7 @@ const rHome = () => {
 <div class="page">
   <div class="container">
     <section class="hero">
+      ${_tenantInfo?.logoUrl ? `<div style="text-align: center; margin-bottom: 20px;"><img src="${_tenantInfo.logoUrl}" style="max-width: 200px; max-height: 200px; border-radius: 12px; object-fit: contain; box-shadow: 0 8px 32px rgba(0,0,0,0.3);"></div>` : ''}
       <span class="slabel">✦ Bem-vindo, ${esc(u.name.split(' ')[0])}</span>
       <h1>Seu estilo,<br><span>seu horário.</span></h1>
       <p>Agende agora na ${esc(_tenantInfo?.name || 'barbearia')}. Rápido, fácil e sem espera.</p>
@@ -667,7 +668,21 @@ const rAdmLayout = (active, content) => {
     ${items.map(it=>`<button class="btn ${active===it.id?'btn-active':''} btn-sm" onclick="Nav.go('${it.id}')">${it.i} <span>${it.l}</span></button>`).join('')}
   </div>
   <aside class="adm-sidebar">
-    <div class="adm-st">Painel Barbearia</div>
+    <div style="text-align:center; margin: 15px 15px 25px 15px; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+      ${_tenantInfo?.logoUrl ? `
+        <img src="${_tenantInfo.logoUrl}" style="max-width: 100%; max-height: 100px; border-radius: 8px; margin-bottom: 10px; object-fit: contain;">
+        <label style="display:block; font-size: 0.75rem; color: var(--text2); cursor: pointer; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text2)'">
+          <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">
+          ✏️ Alterar Logo
+        </label>
+      ` : `
+        <label style="display:block; font-size: 0.8rem; color: var(--text2); cursor: pointer; border: 1px dashed var(--border); padding: 12px; border-radius: 8px; width: 100%; text-align: center; transition: 0.2s;" onmouseover="this.style.borderColor='var(--gold)'; this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'; this.style.color='var(--text2)'">
+          <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">
+          📷 Adicionar Logo
+        </label>
+      `}
+    </div>
+    <div class="adm-st" style="margin-top: 0;">Painel Barbearia</div>
     ${items.map(it=>`<a href="#${it.id}" class="adm-nav-item ${active===it.id?'active':''}" onclick="Nav.go('${it.id}'); return false;">${it.i} <span>${it.l}</span></a>`).join('')}
   </aside>
   <main class="adm-content">${content}</main>
@@ -2409,6 +2424,34 @@ export const App = {
   },
   toggleMob(){const m=document.getElementById('mobMenu');if(m)m.classList.toggle('open');},
   closeMob(){const m=document.getElementById('mobMenu');if(m)m.classList.remove('open');},
+  async uploadLogo(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const formData = new FormData();
+      formData.append('logo', file);
+      const res = await fetch('upload.php', { method: 'POST', body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          await DB.updateBarbeariaData(_tenantInfo.id, { logoUrl: data.url });
+          _tenantInfo.logoUrl = data.url;
+          App.render();
+          return;
+        }
+      }
+    } catch(err) {
+      console.warn("Upload.php falhou. Usando Base64 fallback.", err);
+    }
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result;
+      await DB.updateBarbeariaData(_tenantInfo.id, { logoUrl: base64 });
+      _tenantInfo.logoUrl = base64;
+      App.render();
+    };
+    reader.readAsDataURL(file);
+  },
   closeModal(){
     if (window._currentCameraStream) {
       try {
