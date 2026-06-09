@@ -1380,23 +1380,44 @@ export const App = {
       if(Auth.isSuperAdmin() && hash !== 'superadmin') { window.location.hash='superadmin'; return; }
     }
 
-    app.innerHTML = '<div style="padding:100px;text-align:center;color:var(--gold)">Carregando...</div>';
-
-    let content = '';
-    if(hash==='login'){content=rLogin(); this._draw(app, content); this._bindAuth(); return;}
-    if(hash==='register'){content=rRegister(); this._draw(app, content); this._bindAuth(); return;}
-    if(hash==='superadmin'){ 
-      content=rSuperAdmin(); this._draw(app, rNavbar() + content); 
-      this._loadTenants(); return; 
+    // Rotas que não precisam de dados do Firestore
+    const fastRoutes = ['login', 'register', 'superadmin'];
+    if(fastRoutes.includes(hash)){
+      let content = '';
+      if(hash==='login'){content=rLogin(); this._draw(app, content); this._bindAuth(); return;}
+      if(hash==='register'){content=rRegister(); this._draw(app, content); this._bindAuth(); return;}
+      if(hash==='superadmin'){
+        content=rSuperAdmin(); this._draw(app, rNavbar() + content);
+        this._loadTenants(); return;
+      }
     }
 
     if(hasTenant && Auth.ok()){
-      await DB.loadServices();
-      await DB.loadPros();
-      if(Auth.isAdmin()){ await DB.loadApts(); _tenantUsers = await DB.loadTenantUsers(); } 
-      else { await DB.loadUserApts(Auth.cur.id); }
+      const isAdmin = Auth.isAdmin();
+      const alreadyCached = DB.hasCache(isAdmin);
+
+      if(!alreadyCached){
+        // Primeira carga: exibe spinner e busca dados em paralelo
+        app.innerHTML = '<div style="padding:100px;text-align:center;color:var(--gold)">Carregando...</div>';
+        if(isAdmin){
+          await Promise.all([
+            DB.loadServices(),
+            DB.loadPros(),
+            DB.loadApts()
+          ]);
+          _tenantUsers = await DB.loadTenantUsers();
+        } else {
+          await Promise.all([
+            DB.loadServices(),
+            DB.loadPros(),
+            DB.loadUserApts(Auth.cur.id)
+          ]);
+        }
+      }
+      // Se já tem cache: renderiza diretamente (sem spinner, sem rede)
     }
 
+    let content = '';
     if(hash==='home') content=rHome();
     else if(hash==='booking') content=rBooking();
     else if(hash==='appointments') content=rAppointments();
@@ -1420,6 +1441,38 @@ export const App = {
   },
 
   _draw(app, html){ app.innerHTML = html; },
+
+  /**
+   * Renderiza a p\u00e1gina atual usando apenas o cache em mem\u00f3ria.
+   * N\u00e3o mostra spinner, n\u00e3o faz chamadas de rede.
+   * Usado em intera\u00e7\u00f5es locais: sele\u00e7\u00e3o de servi\u00e7o, barbeiro, data, filtros, etc.
+   */
+  _renderInPlace(){
+    const hash = window.location.hash.slice(1).split('?')[0] || 'home';
+    const app = document.getElementById('app');
+    if(!app) return;
+
+    let content = '';
+    if(hash==='home') content=rHome();
+    else if(hash==='booking') content=rBooking();
+    else if(hash==='appointments') content=rAppointments();
+    else if(hash==='admin') content=rAdmDash();
+    else if(hash==='admin-services') content=rAdmServices();
+    else if(hash==='admin-barbers') content=rAdmBarbers();
+    else if(hash==='admin-appointments') content=rAdmApts();
+    else if(hash==='admin-clients') content=rAdmClients();
+    else if(hash==='admin-reports') content=rAdmReports();
+    else if(hash==='admin-pix') content=rAdmPix();
+    else if(hash==='admin-reminders') content=rAdmReminders();
+    else content=rHome();
+
+    this._draw(app, rNavbar() + `<div style="flex:1">${content}</div>`);
+
+    if(hash==='admin-pix'){
+      const pf=document.getElementById('pixFrm');
+      if(pf) pf.onsubmit = (e) => this.savePix(e);
+    }
+  },
 
   _bindAuth(){
     const lf=document.getElementById('loginF');
@@ -1723,25 +1776,32 @@ export const App = {
     }
   },
 
-  async logout(){ await Auth.logout(); T.info('Você saiu.'); window.location.hash='login'; this.render(); },
+  async logout(){
+    DB.invalidateCache();
+    _tenantUsers = [];
+    await Auth.logout();
+    T.info('Você saiu.');
+    window.location.hash='login';
+    this.render();
+  },
 
   // Booking Methods
   bookWith(svcId){ BS.reset(); const s=DB.services().find(x=>x.id===svcId); if(s){BS.service=s;BS.step=2;} Nav.go('booking'); },
   newBk(){BS.reset();Nav.go('booking');},
-  selSvc(id){BS.service=DB.services().find(x=>x.id===id)||null;this.render();},
-  selPro(id){BS.pro=DB.pros().find(x=>x.id===id)||null;this.render();},
-  selDate(d){BS.date=d;BS.time=null;this.render();},
-  selTime(t){BS.time=t;this.render();},
-  calP(){BS.calM--;if(BS.calM<0){BS.calM=11;BS.calY--;}this.render();},
-  calN(){BS.calM++;if(BS.calM>11){BS.calM=0;BS.calY++;}this.render();},
+  selSvc(id){BS.service=DB.services().find(x=>x.id===id)||null; this._renderInPlace();},
+  selPro(id){BS.pro=DB.pros().find(x=>x.id===id)||null; this._renderInPlace();},
+  selDate(d){BS.date=d;BS.time=null; this._renderInPlace();},
+  selTime(t){BS.time=t; this._renderInPlace();},
+  calP(){BS.calM--;if(BS.calM<0){BS.calM=11;BS.calY--;} this._renderInPlace();},
+  calN(){BS.calM++;if(BS.calM>11){BS.calM=0;BS.calY++;} this._renderInPlace();},
   bkNext(){
     const {step,service,pro,date,time}=BS;
     if(step===1&&!service){T.warn('Selecione um serviço.');return;}
     if(step===2&&!pro){T.warn('Selecione um barbeiro.');return;}
     if(step===3&&(!date||!time)){T.warn('Selecione data e horário.');return;}
-    BS.step++;this.render();
+    BS.step++; this._renderInPlace();
   },
-  bkBack(){BS.step=Math.max(1,BS.step-1);this.render();},
+  bkBack(){BS.step=Math.max(1,BS.step-1); this._renderInPlace();},
   
   async confirmBk(){
     const {service,pro,date,time}=BS; const u=Auth.cur;
@@ -1749,7 +1809,7 @@ export const App = {
     document.getElementById('btnConfirmBk').disabled = true;
     try {
       if(!Avail.canBook(pro.id,date,time,service.duration)){
-        T.err('Horário indisponível.');BS.step=3;this.render();return;
+        T.err('Horário indisponível.');BS.step=3;this._renderInPlace();return;
       }
 
       // Verifica se PIX está configurado
@@ -1779,7 +1839,7 @@ export const App = {
       }
 
       await DB.updateUserPoints(u.id, (u.points||0) + Math.floor(service.price));
-      BS.step=5; T.ok('Agendamento confirmado!'); this.render();
+      BS.step=5; T.ok('Agendamento confirmado!'); this._renderInPlace();
     } catch(e) {
       console.error(e); T.err('Erro ao agendar.'); document.getElementById('btnConfirmBk').disabled = false;
     }
@@ -1788,7 +1848,9 @@ export const App = {
   async cancelApt(id){
     if(!confirm('Cancelar este agendamento?')) return;
     await DB.updateAptStatus(id, 'cancelado');
-    T.ok('Agendamento cancelado.'); this.render();
+    T.ok('Agendamento cancelado.');
+    // Cache de agendamentos já foi atualizado em memória pelo DB.updateAptStatus
+    this._renderInPlace();
   },
 
   tabApt(tab){
@@ -1866,7 +1928,7 @@ export const App = {
         await DB.addAptAndReturn(apt);
         T.ok('Agendamento salvo com sucesso!');
         App.closeModal();
-        App.render();
+        App._renderInPlace();
       } catch(err) {
         T.err('Erro ao salvar agendamento: ' + err.message);
         btn.disabled = false; btn.textContent = 'Salvar Agendamento';
@@ -1892,7 +1954,7 @@ export const App = {
       e.preventDefault(); const fd=new FormData(e.target);
       const data={name:fd.get('name'),duration:+fd.get('dur'),price:+fd.get('price')};
       if(s) data.id = s.id;
-      await DB.saveService(data); App.closeModal(); T.ok(s?'Atualizado!':'Criado!'); this.render();
+      await DB.saveService(data); App.closeModal(); T.ok(s?'Atualizado!':'Criado!'); this._renderInPlace();
     };
   },
   
@@ -2084,18 +2146,42 @@ export const App = {
         window._currentCameraStream = null;
       }
       
-      await DB.savePro(data); App.closeModal(); T.ok(p?'Atualizado!':'Cadastrado!'); this.render();
+      await DB.savePro(data); App.closeModal(); T.ok(p?'Atualizado!':'Cadastrado!'); this._renderInPlace();
     };
   },
 
-  async delSvc(id){ if(confirm('Excluir este serviço?')){ await DB.deleteService(id); T.ok('Serviço excluído.'); this.render(); } },
-  async delBrb(id){ if(confirm('Excluir este barbeiro?')){ await DB.deletePro(id); T.ok('Barbeiro excluído.'); this.render(); } },
-  async admCancel(id){ if(confirm('Cancelar agendamento?')){ await DB.updateAptStatus(id, 'cancelado'); T.ok('Cancelado.'); this.render(); } },
-  async admComplete(id){ await DB.updateAptStatus(id, 'concluido'); T.ok('Concluído.'); this.render(); },
+  async delSvc(id){
+    if(confirm('Excluir este serviço?')){
+      await DB.deleteService(id);
+      T.ok('Serviço excluído.');
+      // deleteService já recarrega services no cache
+      this._renderInPlace();
+    }
+  },
+  async delBrb(id){
+    if(confirm('Excluir este barbeiro?')){
+      await DB.deletePro(id);
+      T.ok('Barbeiro excluído.');
+      // deletePro já recarrega pros no cache
+      this._renderInPlace();
+    }
+  },
+  async admCancel(id){
+    if(confirm('Cancelar agendamento?')){
+      await DB.updateAptStatus(id, 'cancelado');
+      T.ok('Cancelado.');
+      this._renderInPlace();
+    }
+  },
+  async admComplete(id){
+    await DB.updateAptStatus(id, 'concluido');
+    T.ok('Conclुído.');
+    this._renderInPlace();
+  },
 
   setDashCalView(view) {
     this._dashCalView = view;
-    this.render();
+    this._renderInPlace();
   },
   
   navDashCal(dir) {
@@ -2107,7 +2193,7 @@ export const App = {
       d.setDate(d.getDate() + (dir * 7));
     }
     this._dashCalDate = d;
-    this.render();
+    this._renderInPlace();
   },
   
   dashAptClick(id) {
@@ -2194,7 +2280,7 @@ export const App = {
     try{
       await DB.updateAptPixStatus(id, 'pago');
       T.ok('✅ PIX marcado como pago!');
-      this.render();
+      this._renderInPlace();
     }catch(e){ T.err('Erro ao atualizar PIX.'); }
   },
 
@@ -2254,20 +2340,20 @@ export const App = {
       await DB.saveBarbeariaPixConfig(slug, pixConfig);
       _tenantInfo = await DB.refreshTenantInfo(slug);
       T.ok(`⚡ PIX configurado! Chave salva: ${chave}`);
-      this.render();
+      this._renderInPlace();
     }catch(err){ T.err('Erro ao salvar: '+err.message); btn.disabled=false; btn.textContent='✓ Salvar Configurações PIX'; }
   },
 
   // --- Relatórios ---
   changeReportFilter(filter){
     this._reportFilter = filter;
-    this.render();
+    this._renderInPlace();
   },
 
   // --- Lembretes WhatsApp ---
   setRemindersFilter(filter){
     this._remindersFilter = filter;
-    this.render();
+    this._renderInPlace();
   },
 
   _drawReportChart(labels, data){
@@ -2365,7 +2451,7 @@ export const App = {
         await DB.updateBarbeariaData(slug, { logoUrl: base64 });
         _tenantInfo = await DB.refreshTenantInfo(slug);
         T.ok('Logo atualizada com sucesso!');
-        App.render();
+        App._renderInPlace();
       } catch(err) {
         T.err('Erro: ' + err.message);
       } finally {

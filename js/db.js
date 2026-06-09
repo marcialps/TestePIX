@@ -10,9 +10,40 @@ let cache = {
   apts: []
 };
 
+// Flags de controle de cache — evitam recarregar dados já carregados
+let _cacheLoaded = {
+  services: false,
+  pros: false,
+  apts: false
+};
+
 export const DB = {
-  setBarbeariaId(id) { currentBarbeariaId = id; },
+  setBarbeariaId(id) {
+    // Ao trocar de barbearia, invalida o cache anterior
+    if (id !== currentBarbeariaId) {
+      cache = { services: [], pros: [], apts: [] };
+      _cacheLoaded = { services: false, pros: false, apts: false };
+    }
+    currentBarbeariaId = id;
+  },
   getBarbeariaId() { return currentBarbeariaId; },
+
+  /** Retorna true se os dados principais já foram carregados nesta sessão */
+  hasCache(isAdmin = false) {
+    if (isAdmin) {
+      return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts;
+    }
+    return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts;
+  },
+
+  /** Invalida o cache forçando recarga na próxima navegação */
+  invalidateCache(keys = null) {
+    if (!keys) {
+      _cacheLoaded = { services: false, pros: false, apts: false };
+    } else {
+      keys.forEach(k => { if (k in _cacheLoaded) _cacheLoaded[k] = false; });
+    }
+  },
 
   // ==============================
   // TENANTS (Barbearias)
@@ -69,6 +100,7 @@ export const DB = {
     const q = query(collection(db, 'services'), where('barbeariaId', '==', currentBarbeariaId));
     const snap = await getDocs(q);
     cache.services = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _cacheLoaded.services = true;
     return cache.services;
   },
   services() { return cache.services; },
@@ -95,6 +127,7 @@ export const DB = {
     const q = query(collection(db, 'professionals'), where('barbeariaId', '==', currentBarbeariaId));
     const snap = await getDocs(q);
     cache.pros = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _cacheLoaded.pros = true;
     return cache.pros;
   },
   pros() { return cache.pros; },
@@ -121,12 +154,14 @@ export const DB = {
     const q = query(collection(db, 'appointments'), where('barbeariaId', '==', currentBarbeariaId));
     const snap = await getDocs(q);
     cache.apts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _cacheLoaded.apts = true;
     return cache.apts;
   },
   async loadUserApts(userId) {
     const q = query(collection(db, 'appointments'), where('userId', '==', userId));
     const snap = await getDocs(q);
     cache.apts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _cacheLoaded.apts = true;
     return cache.apts;
   },
   apts() { return cache.apts; },
