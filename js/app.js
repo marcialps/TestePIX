@@ -1637,12 +1637,13 @@ export const App = {
         
         const logoFile = fd.get('logoFile');
         if (logoFile && logoFile.size > 0) {
-          const uploadData = new FormData();
-          uploadData.append('logo', logoFile);
-          const uploadRes = await fetch('upload.php', { method: 'POST', body: uploadData });
-          const uploadJson = await uploadRes.json();
-          if (!uploadRes.ok || uploadJson.error) throw new Error(uploadJson.error || 'Falha no upload da logo.');
-          tntUpd.logoUrl = uploadJson.url;
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('Falha ao ler arquivo.'));
+            reader.readAsDataURL(logoFile);
+          });
+          tntUpd.logoUrl = base64;
         }
 
         if (Object.keys(tntUpd).length > 0) {
@@ -2279,16 +2280,14 @@ export const App = {
       }
       
       try {
-        const uploadData = new FormData();
-        uploadData.append('logo', file);
-        const res = await fetch('upload.php', { method: 'POST', body: uploadData });
-        const json = await res.json();
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Falha ao ler arquivo.'));
+          reader.readAsDataURL(file);
+        });
         
-        if(!res.ok || json.error) {
-          throw new Error(json.error || 'Erro no upload.');
-        }
-        
-        await DB.updateBarbeariaData(slug, { logoUrl: json.url });
+        await DB.updateBarbeariaData(slug, { logoUrl: base64 });
         _tenantInfo = await DB.refreshTenantInfo(slug);
         T.ok('Logo atualizada com sucesso!');
         App.render();
