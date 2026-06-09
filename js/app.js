@@ -252,11 +252,8 @@ const rLogin = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      ${_tenantInfo?.logoUrl ? `
-        <div style="display:flex;justify-content:center;margin-bottom:18px">
-          <img src="${_tenantInfo.logoUrl}" style="max-width:180px;max-height:180px;border-radius:16px;object-fit:contain;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);">
-        </div>
-      ` : `<div class="auth-logo-wrap">💈</div>`}
+      <div class="auth-logo-wrap">💈</div>
+    </div>
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -289,11 +286,8 @@ const rRegister = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      ${_tenantInfo?.logoUrl ? `
-        <div style="display:flex;justify-content:center;margin-bottom:18px">
-          <img src="${_tenantInfo.logoUrl}" style="max-width:180px;max-height:180px;border-radius:16px;object-fit:contain;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);">
-        </div>
-      ` : `<div class="auth-logo-wrap">💈</div>`}
+      <div class="auth-logo-wrap">💈</div>
+    </div>
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -376,11 +370,7 @@ const rHome = () => {
 <div class="page">
   <div class="container">
     <section class="hero">
-      ${_tenantInfo?.logoUrl ? `
-        <div style="display:flex;justify-content:center;margin-bottom:28px">
-          <img src="${_tenantInfo.logoUrl}" style="max-width:220px;max-height:220px;border-radius:20px;object-fit:contain;box-shadow:0 12px 48px rgba(201,162,39,0.25),0 4px 16px rgba(0,0,0,0.4);border:1px solid rgba(201,162,39,0.2);animation:fadeIn .5s ease;">
-        </div>
-      ` : ''}
+      
       <span class="slabel">✦ Bem-vindo, ${esc(u.name.split(' ')[0])}</span>
       <h1>Seu estilo,<br><span>seu horário.</span></h1>
       <p>Agende agora na ${esc(_tenantInfo?.name || 'barbearia')}. Rápido, fácil e sem espera.</p>
@@ -686,7 +676,6 @@ const rAdmLayout = (active, content) => {
           <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">
           <img src="${_tenantInfo.logoUrl}" class="sidebar-logo-img" alt="Logo da barbearia">
         </label>
-        <span class="sidebar-logo-change-btn">✏️ Clique na imagem para alterar</span>
       ` : `
         <label class="sidebar-logo-add-btn">
           <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">

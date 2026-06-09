@@ -409,10 +409,11 @@ textarea.fc{resize:vertical;min-height:72px}
 .sidebar-logo-img-wrap:hover::after{opacity:1}
 .sidebar-logo-img{
   width:100%;
-  max-height:130px;
-  object-fit:contain;
+  max-height:220px;
+  height:160px;
+  object-fit:cover;
   display:block;
-  border-radius:10px;
+  border-radius:12px;
   border:1px solid rgba(255,255,255,.07);
   background:var(--bg3);
 }
