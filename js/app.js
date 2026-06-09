@@ -814,7 +814,7 @@ const rAdmDash = () => {
   const hasPix=!!(_tenantInfo?.pixConfig?.chave);
 
   return rAdmLayout('admin',`
-  <div class="ph"><div><h1 class="ptitle">Dashboard</h1><p class="psub">${_tenantInfo?.name||''}</p></div><button class="btn btn-primary" onclick="Nav.go('booking')">＋ Novo Agendamento</button></div>
+  <div class="ph"><div><h1 class="ptitle">Dashboard</h1><p class="psub">${_tenantInfo?.name||''}</p></div><button class="btn btn-primary" onclick="App.openAdmBkModal()">＋ Novo Agendamento</button></div>
   <div class="stats-grid">
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Total Agendamentos</span></div><div class="scv">${all.length}</div></div>
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Receita Total</span></div><div class="scv" style="color:var(--success)">${fmt(rev)}</div></div>
@@ -921,7 +921,7 @@ const rAdmApts = () => {
   `;
 
   return rAdmLayout('admin-appointments', `
-    <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div><button class="btn btn-primary" onclick="Nav.go('booking')">＋ Novo Agendamento</button></div>
+    <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div><button class="btn btn-primary" onclick="App.openAdmBkModal()">＋ Novo Agendamento</button></div>
     ${renderSection('Em Espera', emEspera, '#3b82f6', '⏳')}
     ${renderSection('Concluídos', concluidos, '#22c55e', '✅')}
     ${renderSection('Cancelados', cancelados, '#ef4444', '✕')}
@@ -1799,6 +1799,81 @@ export const App = {
   },
 
   // Admin Methods
+  openAdmBkModal(){
+    const svcs = DB.services();
+    const pros = DB.pros();
+    const today = todayStr();
+    
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal" style="max-width:500px">
+        <div class="modal-head"><h3 class="modal-title">Novo Agendamento</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <form id="admBkFrm">
+          <div class="fg"><label class="flabel">Nome do Cliente *</label><input type="text" name="clientName" class="fc" placeholder="Ex: João da Silva" required></div>
+          <div class="fg"><label class="flabel">Serviço *</label>
+            <select name="serviceId" class="fc" required>
+              <option value="">Selecione o serviço...</option>
+              ${svcs.map(s=>`<option value="${s.id}">${esc(s.name)} - ${fmt(s.price)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg"><label class="flabel">Barbeiro *</label>
+            <select name="proId" class="fc" required>
+              <option value="">Selecione o profissional...</option>
+              ${pros.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div class="fg" style="margin-bottom:0"><label class="flabel">Data *</label><input type="date" name="date" class="fc" value="${today}" required></div>
+            <div class="fg" style="margin-bottom:0"><label class="flabel">Horário *</label><input type="time" name="time" class="fc" step="900" required></div>
+          </div>
+          <button type="submit" class="btn btn-primary w-full" id="btnAdmBkSave">Salvar Agendamento</button>
+        </form>
+      </div>
+    </div>`;
+
+    document.getElementById('admBkFrm').onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const svcId = fd.get('serviceId');
+      const proId = fd.get('proId');
+      const date = fd.get('date');
+      const time = fd.get('time');
+      const clientName = fd.get('clientName').trim();
+      const service = svcs.find(s=>s.id===svcId);
+      
+      const btn = document.getElementById('btnAdmBkSave');
+      btn.disabled = true; btn.textContent = 'Salvando...';
+
+      try {
+        if(!Avail.canBook(proId, date, time, service.duration)){
+          T.err('Horário indisponível para este barbeiro.');
+          btn.disabled = false; btn.textContent = 'Salvar Agendamento';
+          return;
+        }
+
+        const apt = {
+          userId: '',
+          clientName: clientName,
+          serviceId: service.id,
+          professionalId: proId,
+          date: date,
+          time: time,
+          status: 'confirmado',
+          createdAt: new Date().toISOString(),
+          price: service.price
+        };
+
+        await DB.addAptAndReturn(apt);
+        T.ok('Agendamento salvo com sucesso!');
+        App.closeModal();
+        App.render();
+      } catch(err) {
+        T.err('Erro ao salvar agendamento: ' + err.message);
+        btn.disabled = false; btn.textContent = 'Salvar Agendamento';
+      }
+    };
+  },
+
   openSvcModal(id=null){
     const s=id?DB.services().find(x=>x.id===id):null;
     document.getElementById('modalRoot').innerHTML = `
