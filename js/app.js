@@ -766,8 +766,8 @@ const rAdmDashCal = () => {
               const pr = pros.find(p => p.id === apt.professionalId);
               const dur = sv ? Number(sv.duration) : 30;
               
-              const top = (h - startHour) * 120 + (m * 2); // 2px = 1min
-              const height = dur * 2;
+              const top = (h - startHour) * 90 + (m * 1.5); // 1.5px = 1min
+              const height = dur * 1.5;
               
               // Generate color based on pro ID to make it distinct
               const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e'];
