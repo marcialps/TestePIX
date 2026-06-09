@@ -433,6 +433,13 @@ const rBooking = () => {
   return `
 <div class="page">
   <div class="container">
+    ${_tenantInfo?.logoUrl ? `
+      <div style="display:flex;justify-content:center;margin-bottom:18px">
+        <img src="${_tenantInfo.logoUrl}" class="site-logo" alt="Logo">
+      </div>
+    ` : `
+      <div class="site-logo-default" style="margin-bottom:18px">💈</div>
+    `}
     <div class="ph"><div><h1 class="ptitle">Novo Agendamento</h1><p class="psub">Siga os passos para reservar seu horário</p></div></div>
     <div class="wiz-steps">${stepsH}</div>
     <div class="card" style="max-width:820px;margin:0 auto">${content}</div>
@@ -671,18 +678,10 @@ const rAdmLayout = (active, content) => {
   </div>
   <aside class="adm-sidebar">
     <div class="sidebar-logo-area">
-      ${_tenantInfo?.logoUrl ? `
-        <label class="sidebar-logo-img-wrap" title="Clique para alterar a logo">
-          <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">
-          <img src="${_tenantInfo.logoUrl}" class="sidebar-logo-img" alt="Logo da barbearia">
-        </label>
-      ` : `
-        <label class="sidebar-logo-add-btn">
-          <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">
-          <span style="font-size:1.8rem;display:block;margin-bottom:6px">📷</span>
-          Adicionar Logo da Barbearia
-        </label>
-      `}
+      <label class="sidebar-logo-img-wrap" title="Clique para alterar a logo">
+        <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">
+        ${_tenantInfo?.logoUrl ? `<img src="${_tenantInfo.logoUrl}" class="sidebar-logo-img" alt="Logo da barbearia">` : `<div class="sidebar-logo-default">💈</div>`}
+      </label>
     </div>
     <div class="adm-st">Painel Barbearia</div>
     ${items.map(it=>`<a href="#${it.id}" class="adm-nav-item ${active===it.id?'active':''}" onclick="Nav.go('${it.id}'); return false;">${it.i} <span>${it.l}</span></a>`).join('')}

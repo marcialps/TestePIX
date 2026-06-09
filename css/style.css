@@ -417,6 +417,21 @@ textarea.fc{resize:vertical;min-height:72px}
   border:1px solid rgba(255,255,255,.07);
   background:var(--bg3);
 }
+
+.sidebar-logo-default{
+  width:100%;
+  height:160px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--gold);color:#000;font-size:2.1rem;border-radius:12px;
+  box-shadow:0 8px 24px rgba(201,162,39,.25);border:1px solid rgba(0,0,0,.06);
+}
+
+.site-logo{
+  max-width:240px;max-height:240px;width:auto;height:120px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.06);box-shadow:0 12px 36px rgba(201,162,39,.18);
+}
+.site-logo-default{
+  width:120px;height:120px;border-radius:18px;background:var(--gold);display:flex;align-items:center;justify-content:center;color:#000;font-size:2rem;box-shadow:0 12px 36px rgba(201,162,39,.18);border:1px solid rgba(0,0,0,.06);
+}
 .sidebar-logo-change-btn{
   display:block;
   font-size:.73rem;color:var(--text3);
