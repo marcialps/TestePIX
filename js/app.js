@@ -814,7 +814,7 @@ const rAdmDash = () => {
   const hasPix=!!(_tenantInfo?.pixConfig?.chave);
 
   return rAdmLayout('admin',`
-  <div class="ph"><div><h1 class="ptitle">Dashboard</h1><p class="psub">${_tenantInfo?.name||''}</p></div></div>
+  <div class="ph"><div><h1 class="ptitle">Dashboard</h1><p class="psub">${_tenantInfo?.name||''}</p></div><button class="btn btn-primary" onclick="Nav.go('booking')">＋ Novo Agendamento</button></div>
   <div class="stats-grid">
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Total Agendamentos</span></div><div class="scv">${all.length}</div></div>
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Receita Total</span></div><div class="scv" style="color:var(--success)">${fmt(rev)}</div></div>
@@ -921,7 +921,7 @@ const rAdmApts = () => {
   `;
 
   return rAdmLayout('admin-appointments', `
-    <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div></div>
+    <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div><button class="btn btn-primary" onclick="Nav.go('booking')">＋ Novo Agendamento</button></div>
     ${renderSection('Em Espera', emEspera, '#3b82f6', '⏳')}
     ${renderSection('Concluídos', concluidos, '#22c55e', '✅')}
     ${renderSection('Cancelados', cancelados, '#ef4444', '✕')}
