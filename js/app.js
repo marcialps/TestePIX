@@ -1503,14 +1503,6 @@ export const App = {
       console.log('[App.render] Auth.cur:', Auth.cur, 'DB.getBarbeariaId():', DB.getBarbeariaId(), '_tenantInfo:', _tenantInfo);
 
       let hasTenant = !!DB.getBarbeariaId();
-      // If no tenant in URL, but user is logged and belongs to a barbearia, use that
-      if(!hasTenant && Auth.ok() && Auth.cur?.barbeariaId){
-        if(Auth.cur.barbeariaId){
-          DB.setBarbeariaId(Auth.cur.barbeariaId);
-          _tenantInfo = await DB.getBarbeariaBySlug(Auth.cur.barbeariaId);
-          hasTenant = !!_tenantInfo;
-        }
-      }
       if(!hasTenant && hash !== 'superadmin' && hash !== 'login' && hash !== 'register'){
         if(Auth.isSuperAdmin()){ Nav.go('superadmin'); return; }
         else if(Auth.isAdmin() && Auth.cur.barbeariaId){ window.location.href = `?b=${Auth.cur.barbeariaId}#admin`; return; }
@@ -1548,12 +1540,18 @@ export const App = {
         if(Auth.isAdmin()){ await DB.loadApts(); _tenantUsers = await DB.loadTenantUsers(); }
         else { await DB.loadUserApts(Auth.cur.id); }
       }
-
-      if(hash==='home') content=rHome();
-      else if(hash==='booking') content=rBooking();
-      else if(hash==='appointments') content=rAppointments();
-      else if(hash==='admin') content=rAdmDash();
-      else if(hash==='admin-services') content=rAdmServices();
+    // Se não há tenant de URL mas há usuário autenticado com barbeariaId, carrega dados dele
+    else if(!hasTenant && Auth.ok() && Auth.cur?.barbeariaId){
+      try{
+        DB.setBarbeariaId(Auth.cur.barbeariaId);
+        _tenantInfo = await DB.getBarbeariaBySlug(Auth.cur.barbeariaId);
+        if(_tenantInfo){
+          await DB.loadServices();
+          await DB.loadPros();
+          if(!Auth.isAdmin()){ await DB.loadUserApts(Auth.cur.id); }
+        }
+      }catch(e){ console.warn('[render] Erro ao carregar tenant do usuário:', e); }
+    }
       else if(hash==='admin-barbers') content=rAdmBarbers();
       else if(hash==='admin-appointments') content=rAdmApts();
       else if(hash==='admin-clients') content=rAdmClients();
