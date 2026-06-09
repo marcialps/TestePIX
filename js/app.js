@@ -252,7 +252,11 @@ const rLogin = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      <div class="auth-logo-wrap">💈</div>
+      ${_tenantInfo?.logoUrl ? `
+        <div style="display:flex;justify-content:center;margin-bottom:12px">
+          <img src="${_tenantInfo.logoUrl}" class="site-logo" alt="Logo">
+        </div>
+      ` : `<div class="auth-logo-wrap">💈</div>`}
     </div>
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
@@ -286,7 +290,11 @@ const rRegister = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      <div class="auth-logo-wrap">💈</div>
+      ${_tenantInfo?.logoUrl ? `
+        <div style="display:flex;justify-content:center;margin-bottom:12px">
+          <img src="${_tenantInfo.logoUrl}" class="site-logo" alt="Logo">
+        </div>
+      ` : `<div class="auth-logo-wrap">💈</div>`}
     </div>
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
@@ -1789,7 +1797,11 @@ export const App = {
     }
     if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
     try {
-      await DB.sendOwnerPasswordReset(email);
+          ${_tenantInfo?.logoUrl ? `
+            <div style="display:flex;justify-content:center;margin-bottom:18px">
+              <img src="${_tenantInfo.logoUrl}" class="site-logo" alt="Logo">
+            </div>
+          ` : `<div class="site-logo-default" style="margin-bottom:18px">💈</div>`}
       if(msgEl) {
         msgEl.textContent = '✅ Link enviado! O dono deve verificar o e-mail (incluindo caixa de spam).';
         msgEl.style.color = 'var(--success)';
