@@ -18,13 +18,13 @@
 
   <!-- App Scripts (como módulos) -->
   <script>
-    window.DEBUG = (msg) => {
+    window.DEBUG = function(msg) {
       const d = document.getElementById('debug');
       if(d) { d.style.display='block'; d.innerHTML = msg + '<br>' + (d.innerHTML || ''); }
       console.log('[DEBUG]', msg);
     };
     window.DEBUG('Scripts inicializando...');
-    window.onerror = (msg, url, line, col, err) => {
+    window.onerror = function(msg, url, line, col, err) {
       window.DEBUG('ERRO GLOBAL: ' + msg);
       console.error('Global error:', msg, url, line, err);
     };

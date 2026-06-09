@@ -2,7 +2,7 @@ import { Auth } from './auth.js';
 import { DB } from './db.js';
 import { generatePixPayload, sanitizeChave } from './pix.js';
 
-window.DEBUG?.('app.js carregando...');
+if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('app.js carregando...');
 
 /* =====================================================
    UTILITÁRIOS
@@ -1502,7 +1502,7 @@ export const App = {
     const app=document.getElementById('app');
     const dd=document.getElementById('userDD');if(dd)dd.remove();
     try{
-      window.DEBUG?.('render() hash=' + hash);
+      if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('render() hash=' + hash);
       console.log('[App.render] Auth.cur:', Auth.cur, 'DB.getBarbeariaId():', DB.getBarbeariaId(), '_tenantInfo:', _tenantInfo);
 
       let hasTenant = !!DB.getBarbeariaId();
@@ -1572,7 +1572,7 @@ export const App = {
       }
     }
     catch(e){
-      window.DEBUG?.('ERRO: ' + (e.message || e));
+      if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('ERRO: ' + (e.message || e));
       console.error('[App.render] error', e);
       if(app) app.innerHTML = `<div style="padding:40px;color:#f00;font-weight:700;font-family:monospace">ERRO: ${e.message || e}<br><br>${e.stack || ''}</div>`;
     }
@@ -2506,7 +2506,7 @@ export const App = {
   // Init
   async init(){
     window.App = this;
-    window.DEBUG?.('App.init() chamado');
+    if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('App.init() chamado');
     const params = new URLSearchParams(window.location.search);
     const tenantId = params.get('b');
     
@@ -2516,15 +2516,15 @@ export const App = {
       if(!_tenantInfo || _tenantInfo.status !== 'active') { document.getElementById('app').innerHTML = rNoTenant(); return; }
     }
 
-    window.DEBUG?.('Auth.init() iniciando...');
+    if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('Auth.init() iniciando...');
     Auth.init((user) => { 
-      window.DEBUG?.('Auth callback recebeu: ' + (user?.email || 'null'));
+      if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('Auth callback recebeu: ' + (user ? user.email : 'null'));
       this.render(); 
     });
     window.addEventListener('hashchange',()=>this.render());
-    window.DEBUG?.('App.init() pronto');
+    if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('App.init() pronto');
   }
 };
 
-window.DEBUG?.('app.js OK - App definido, chamando App.init()...');
+if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('app.js OK - App definido, chamando App.init()...');
 App.init();

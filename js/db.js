@@ -1,6 +1,6 @@
 import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail } from './firebase-config.js';
 
-window.DEBUG?.('db.js carregando...');
+if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('db.js carregando...');
 
 let currentBarbeariaId = null;
 
@@ -197,4 +197,4 @@ export const DB = {
   }
 };
 
-window.DEBUG?.('db.js OK - DB exportado');
+if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('db.js OK - DB exportado');
