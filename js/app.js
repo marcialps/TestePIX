@@ -54,6 +54,11 @@ const formatWorkingHours = (wh) => {
   return res;
 };
 
+const renderTenantLogo = (alt, cls) => {
+  if (!_tenantInfo?.logoUrl) return '';
+  return `<img src="${esc(_tenantInfo.logoUrl)}" alt="${esc(alt)}" class="${cls}">`;
+};
+
 /* =====================================================
    TOAST
    ===================================================== */
@@ -252,7 +257,7 @@ const rLogin = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      <div class="auth-logo-wrap">💈</div>
+      ${renderTenantLogo(_tenantInfo?.name || 'Sistema', 'auth-logo-img') || '<div class="auth-logo-wrap">💈</div>'}
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -285,7 +290,7 @@ const rRegister = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      <div class="auth-logo-wrap">💈</div>
+      ${renderTenantLogo(_tenantInfo?.name || 'Sistema', 'auth-logo-img') || '<div class="auth-logo-wrap">💈</div>'}
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -368,6 +373,7 @@ const rHome = () => {
 <div class="page">
   <div class="container">
     <section class="hero">
+      ${renderTenantLogo(_tenantInfo?.name || 'Sistema', 'home-logo-img') || '<div class="home-logo-placeholder">💈</div>'}
       <span class="slabel">✦ Bem-vindo, ${esc(u.name.split(' ')[0])}</span>
       <h1>Seu estilo,<br><span>seu horário.</span></h1>
       <p>Agende agora na ${esc(_tenantInfo?.name || 'barbearia')}. Rápido, fácil e sem espera.</p>
@@ -661,12 +667,18 @@ const rAdmLayout = (active, content) => {
     {id:'admin-pix',i:'⚡',l:'Configurações PIX'},
     {id:'admin-reminders',i:'💬',l:'Lembretes Whats'},
   ];
+  const showTenantEditor = Auth.isAdmin() && DB.getBarbeariaId();
   return `
 <div class="adm-layout">
   <div class="adm-mob-nav">
     ${items.map(it=>`<button class="btn ${active===it.id?'btn-active':''} btn-sm" onclick="Nav.go('${it.id}')">${it.i} <span>${it.l}</span></button>`).join('')}
   </div>
   <aside class="adm-sidebar">
+    <div class="adm-sidebar-brand">
+      ${renderTenantLogo(_tenantInfo?.name || 'Painel Barbearia', 'adm-logo-img') || '<div class="adm-logo-placeholder">💈</div>'}
+      <div class="adm-logo-caption">${esc(_tenantInfo?.name || 'Painel Barbearia')}</div>
+      ${showTenantEditor ? `<button type="button" class="btn btn-sm btn-ghost" style="width:100%;margin-top:8px" onclick="App.openEditTenantModal('${DB.getBarbeariaId()}')">Editar identidade</button>` : ''}
+    </div>
     <div class="adm-st">Painel Barbearia</div>
     ${items.map(it=>`<a href="#${it.id}" class="adm-nav-item ${active===it.id?'active':''}" onclick="Nav.go('${it.id}'); return false;">${it.i} <span>${it.l}</span></a>`).join('')}
   </aside>
@@ -1550,6 +1562,18 @@ export const App = {
             <div style="font-size:.72rem;color:var(--text3);margin-top:4px">Se preenchido, este será usado no botão de Contato em vez do telefone do dono.</div>
           </div>
 
+          <div class="fg">
+            <label class="flabel">Logo da Barbearia</label>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                ${tenant.logoUrl ? `<img src="${esc(tenant.logoUrl)}" alt="Logo atual" class="adm-logo-img" style="max-width:120px;">` : '<div class="adm-logo-placeholder">💈</div>'}
+                <button type="button" class="btn btn-ghost btn-sm" onclick="App.removeTenantLogo('${esc(slug)}')" style="${tenant.logoUrl ? '' : 'display:none;'}">Remover logo</button>
+              </div>
+              <input type="file" name="logoFile" accept="image/png,image/jpeg,image/webp" class="fc">
+              <div style="font-size:.72rem;color:var(--text3);">A logo será exibida no painel da barbearia, na tela de login e na tela do cliente. Se não quiser usar logo, mantenha em branco.</div>
+            </div>
+          </div>
+
           <!-- Dados do dono -->
           <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:12px;margin-top:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
             👤 Dados do Dono
@@ -1606,6 +1630,16 @@ export const App = {
         if (barbName !== tenant.name) tntUpd.name = barbName;
         if (barbPhone !== (tenant.phone||'')) tntUpd.phone = barbPhone;
         
+        const logoFile = fd.get('logoFile');
+        if (logoFile && logoFile.size > 0) {
+          const uploadData = new FormData();
+          uploadData.append('logo', logoFile);
+          const uploadRes = await fetch('upload.php', { method: 'POST', body: uploadData });
+          const uploadJson = await uploadRes.json();
+          if (!uploadRes.ok || uploadJson.error) throw new Error(uploadJson.error || 'Falha no upload da logo.');
+          tntUpd.logoUrl = uploadJson.url;
+        }
+
         if (Object.keys(tntUpd).length > 0) {
           await DB.updateBarbeariaData(slug, tntUpd);
         }
@@ -2209,6 +2243,20 @@ export const App = {
       window._currentCameraStream = null;
     }
     document.getElementById('modalRoot').innerHTML='';
+  },
+  async removeTenantLogo(slug){
+    const btn = document.getElementById('btnSaveEditTnt');
+    if(btn) { btn.disabled = true; btn.textContent = 'Removendo...'; }
+    try {
+      await DB.updateBarbeariaData(slug, { logoUrl: '' });
+      T.ok('Logo removida com sucesso.');
+      App.closeModal();
+      App._loadTenants();
+    } catch(err) {
+      T.err('Não foi possível remover a logo.');
+    } finally {
+      if(btn) { btn.disabled = false; btn.textContent = '✓ Salvar Alterações'; }
+    }
   },
   openTenantModal(){openTenantModal();},
 
