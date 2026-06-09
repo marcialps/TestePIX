@@ -11,14 +11,23 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app" style="min-height:100vh;background:#0d0d0d"></div>
   <div id="toastWrap"></div>
   <div id="modalRoot"></div>
+  <div id="debug" style="position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,0.8);color:#0f0;padding:10px;font-size:10px;font-family:monospace;max-width:300px;border:1px solid #0f0;border-radius:4px;display:none;z-index:999999"></div>
 
   <!-- App Scripts (como módulos) -->
-  <script type="module" src="js/firebase-config.js?v=2"></script>
-  <script type="module" src="js/db.js?v=2"></script>
-  <script type="module" src="js/auth.js?v=2"></script>
-  <script type="module" src="js/app.js?v=2"></script>
+  <script type="module">
+    window.DEBUG = (msg) => {
+      const d = document.getElementById('debug');
+      if(d) { d.style.display='block'; d.innerHTML = msg + '<br>' + (d.innerHTML || ''); }
+      console.log('[DEBUG]', msg);
+    };
+    window.DEBUG('Scripts inicializando...');
+  </script>
+  <script type="module" src="js/firebase-config.js?v=3"></script>
+  <script type="module" src="js/db.js?v=3"></script>
+  <script type="module" src="js/auth.js?v=3"></script>
+  <script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>

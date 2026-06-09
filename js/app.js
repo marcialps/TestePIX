@@ -1500,6 +1500,7 @@ export const App = {
     const app=document.getElementById('app');
     const dd=document.getElementById('userDD');if(dd)dd.remove();
     try{
+      window.DEBUG?.('render() hash=' + hash);
       console.log('[App.render] Auth.cur:', Auth.cur, 'DB.getBarbeariaId():', DB.getBarbeariaId(), '_tenantInfo:', _tenantInfo);
 
       let hasTenant = !!DB.getBarbeariaId();
@@ -1569,8 +1570,9 @@ export const App = {
       }
     }
     catch(e){
+      window.DEBUG?.('ERRO: ' + (e.message || e));
       console.error('[App.render] error', e);
-      if(app) app.innerHTML = `<div style="padding:40px;color:var(--danger);font-weight:700">Erro: ${e.message || e}</div>`;
+      if(app) app.innerHTML = `<div style="padding:40px;color:#f00;font-weight:700;font-family:monospace">ERRO: ${e.message || e}<br><br>${e.stack || ''}</div>`;
     }
   },
 
@@ -2501,7 +2503,8 @@ export const App = {
 
   // Init
   async init(){
-    window.App = this; 
+    window.App = this;
+    window.DEBUG?.('App.init() chamado');
     const params = new URLSearchParams(window.location.search);
     const tenantId = params.get('b');
     
@@ -2511,8 +2514,13 @@ export const App = {
       if(!_tenantInfo || _tenantInfo.status !== 'active') { document.getElementById('app').innerHTML = rNoTenant(); return; }
     }
 
-    Auth.init((user) => { this.render(); });
+    window.DEBUG?.('Auth.init() iniciando...');
+    Auth.init((user) => { 
+      window.DEBUG?.('Auth callback recebeu: ' + (user?.email || 'null'));
+      this.render(); 
+    });
     window.addEventListener('hashchange',()=>this.render());
+    window.DEBUG?.('App.init() pronto');
   }
 };
 
