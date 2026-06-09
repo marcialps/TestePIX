@@ -1499,73 +1499,83 @@ export const App = {
     const hash=window.location.hash.slice(1).split('?')[0]||'home';
     const app=document.getElementById('app');
     const dd=document.getElementById('userDD');if(dd)dd.remove();
+    try{
+      console.log('[App.render] Auth.cur:', Auth.cur, 'DB.getBarbeariaId():', DB.getBarbeariaId(), '_tenantInfo:', _tenantInfo);
 
-    let hasTenant = !!DB.getBarbeariaId();
-    // If no tenant in URL, but user is logged and belongs to a barbearia, use that
-    if(!hasTenant && Auth.ok() && Auth.cur?.barbeariaId){
-      DB.setBarbeariaId(Auth.cur.barbeariaId);
-      _tenantInfo = await DB.getBarbeariaBySlug(Auth.cur.barbeariaId);
-      hasTenant = !!_tenantInfo;
+      let hasTenant = !!DB.getBarbeariaId();
+      // If no tenant in URL, but user is logged and belongs to a barbearia, use that
+      if(!hasTenant && Auth.ok() && Auth.cur?.barbeariaId){
+        if(Auth.cur.barbeariaId){
+          DB.setBarbeariaId(Auth.cur.barbeariaId);
+          _tenantInfo = await DB.getBarbeariaBySlug(Auth.cur.barbeariaId);
+          hasTenant = !!_tenantInfo;
+        }
+      }
+      if(!hasTenant && hash !== 'superadmin' && hash !== 'login' && hash !== 'register'){
+        if(Auth.isSuperAdmin()){ Nav.go('superadmin'); return; }
+        else if(Auth.isAdmin() && Auth.cur.barbeariaId){ window.location.href = `?b=${Auth.cur.barbeariaId}#admin`; return; }
+        else { app.innerHTML = rNoTenant(); return; }
+      }
+
+      if(!Auth.ok()&&!['login','register'].includes(hash)){window.location.hash='login';return;}
+      
+      if(Auth.ok()){
+        if(['login','register'].includes(hash)){window.location.hash=Auth.isAdmin()?'admin':'home';return;}
+        if(Auth.isAdmin() && hash === 'home') { window.location.hash='admin'; return; }
+        if(Auth.isSuperAdmin() && hash !== 'superadmin') { window.location.hash='superadmin'; return; }
+      }
+
+      app.innerHTML = '<div style="padding:100px;text-align:center;color:var(--gold)">Carregando...</div>';
+
+      let content = '';
+      if(hash==='login'){
+        // Garante que _tenantInfo é carregado mesmo sem usuário logado (para exibir a logo)
+        if(!_tenantInfo && DB.getBarbeariaId()) { _tenantInfo = await DB.refreshTenantInfo(DB.getBarbeariaId()); }
+        content=rLogin(); this._draw(app, content); this._bindAuth(); return;
+      }
+      if(hash==='register'){
+        if(!_tenantInfo && DB.getBarbeariaId()) { _tenantInfo = await DB.refreshTenantInfo(DB.getBarbeariaId()); }
+        content=rRegister(); this._draw(app, content); this._bindAuth(); return;
+      }
+      if(hash==='superadmin'){
+        content=rSuperAdmin(); this._draw(app, rNavbar() + content);
+        this._loadTenants(); return;
+      }
+
+      if(hasTenant && Auth.ok()){
+        await DB.loadServices();
+        await DB.loadPros();
+        if(Auth.isAdmin()){ await DB.loadApts(); _tenantUsers = await DB.loadTenantUsers(); }
+        else { await DB.loadUserApts(Auth.cur.id); }
+      }
+
+      if(hash==='home') content=rHome();
+      else if(hash==='booking') content=rBooking();
+      else if(hash==='appointments') content=rAppointments();
+      else if(hash==='admin') content=rAdmDash();
+      else if(hash==='admin-services') content=rAdmServices();
+      else if(hash==='admin-barbers') content=rAdmBarbers();
+      else if(hash==='admin-appointments') content=rAdmApts();
+      else if(hash==='admin-clients') content=rAdmClients();
+      else if(hash==='admin-reports') content=rAdmReports();
+      else if(hash==='admin-pix') content=rAdmPix();
+      else if(hash==='admin-reminders') content=rAdmReminders();
+      else content = rHome();
+
+      this._draw(app, rNavbar() + `<div style="flex:1">${content}</div>`);
+
+      // Bind PIX form se estiver na tela admin-pix
+      if(hash==='admin-pix'){
+        const pf=document.getElementById('pixFrm');
+        if(pf) pf.onsubmit = (e) => this.savePix(e);
+      }
     }
-    if(!hasTenant && hash !== 'superadmin' && hash !== 'login' && hash !== 'register'){
-      if(Auth.isSuperAdmin()){ Nav.go('superadmin'); return; }
-      else if(Auth.isAdmin() && Auth.cur.barbeariaId){ window.location.href = `?b=${Auth.cur.barbeariaId}#admin`; return; }
-      else { app.innerHTML = rNoTenant(); return; }
-    }
-
-    if(!Auth.ok()&&!['login','register'].includes(hash)){window.location.hash='login';return;}
-    
-    if(Auth.ok()){
-      if(['login','register'].includes(hash)){window.location.hash=Auth.isAdmin()?'admin':'home';return;}
-      if(Auth.isAdmin() && hash === 'home') { window.location.hash='admin'; return; }
-      if(Auth.isSuperAdmin() && hash !== 'superadmin') { window.location.hash='superadmin'; return; }
-    }
-
-    app.innerHTML = '<div style="padding:100px;text-align:center;color:var(--gold)">Carregando...</div>';
-
-    let content = '';
-    if(hash==='login'){
-      // Garante que _tenantInfo é carregado mesmo sem usuário logado (para exibir a logo)
-      if(!_tenantInfo && DB.getBarbeariaId()) { _tenantInfo = await DB.refreshTenantInfo(DB.getBarbeariaId()); }
-      content=rLogin(); this._draw(app, content); this._bindAuth(); return;
-    }
-    if(hash==='register'){
-      if(!_tenantInfo && DB.getBarbeariaId()) { _tenantInfo = await DB.refreshTenantInfo(DB.getBarbeariaId()); }
-      content=rRegister(); this._draw(app, content); this._bindAuth(); return;
-    }
-    if(hash==='superadmin'){ 
-      content=rSuperAdmin(); this._draw(app, rNavbar() + content); 
-      this._loadTenants(); return; 
-    }
-
-    if(hasTenant && Auth.ok()){
-      await DB.loadServices();
-      await DB.loadPros();
-      if(Auth.isAdmin()){ await DB.loadApts(); _tenantUsers = await DB.loadTenantUsers(); } 
-      else { await DB.loadUserApts(Auth.cur.id); }
-    }
-
-    if(hash==='home') content=rHome();
-    else if(hash==='booking') content=rBooking();
-    else if(hash==='appointments') content=rAppointments();
-    else if(hash==='admin') content=rAdmDash();
-    else if(hash==='admin-services') content=rAdmServices();
-    else if(hash==='admin-barbers') content=rAdmBarbers();
-    else if(hash==='admin-appointments') content=rAdmApts();
-    else if(hash==='admin-clients') content=rAdmClients();
-    else if(hash==='admin-reports') content=rAdmReports();
-    else if(hash==='admin-pix') content=rAdmPix();
-    else if(hash==='admin-reminders') content=rAdmReminders();
-    else content = rHome();
-
-    this._draw(app, rNavbar() + `<div style="flex:1">${content}</div>`);
-
-    // Bind PIX form se estiver na tela admin-pix
-    if(hash==='admin-pix'){
-      const pf=document.getElementById('pixFrm');
-      if(pf) pf.onsubmit = (e) => this.savePix(e);
+    catch(e){
+      console.error('[App.render] error', e);
+      if(app) app.innerHTML = `<div style="padding:40px;color:var(--danger);font-weight:700">Erro: ${e.message || e}</div>`;
     }
   },
+
 
   _draw(app, html){ app.innerHTML = html; },
 
