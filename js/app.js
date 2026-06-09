@@ -674,9 +674,9 @@ const rAdmLayout = (active, content) => {
     ${items.map(it=>`<button class="btn ${active===it.id?'btn-active':''} btn-sm" onclick="Nav.go('${it.id}')">${it.i} <span>${it.l}</span></button>`).join('')}
   </div>
   <aside class="adm-sidebar">
-    <div class="adm-sidebar-brand" id="admBrandLogo" onmouseover="App.showLogoBtnHover()" onmouseout="App.hideLogoBtnHover()" style="position:relative">
+    <div class="adm-sidebar-brand" id="admBrandLogo" onmouseover="App.showLogoBtnHover()" onmouseout="App.hideLogoBtnHover()" style="position:relative;cursor:pointer">
       ${renderTenantLogo(_tenantInfo?.name || 'Painel Barbearia', 'adm-logo-img') || '<div class="adm-logo-placeholder">💈</div>'}
-      <button type="button" id="admLogoHoverBtn" class="btn btn-sm" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(201,162,39,.9);color:#000;display:none;opacity:0;transition:opacity .2s ease;z-index:10" onclick="App.openEditTenantModal('${DB.getBarbeariaId()}')">Alterar</button>
+      <div id="admLogoHoverBtn" class="btn btn-sm" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(201,162,39,.95);color:#000;display:none;opacity:0;transition:opacity .2s ease;z-index:10;cursor:pointer;pointer-events:auto" onclick="App.changeLogoQuick('${DB.getBarbeariaId()}')">Alterar</div>
     </div>
     <div class="adm-st">Painel Barbearia</div>
     ${items.map(it=>`<a href="#${it.id}" class="adm-nav-item ${active===it.id?'active':''}" onclick="Nav.go('${it.id}'); return false;">${it.i} <span>${it.l}</span></a>`).join('')}
@@ -2259,11 +2259,57 @@ export const App = {
   },
   showLogoBtnHover(){
     const btn = document.getElementById('admLogoHoverBtn');
-    if(btn) { btn.style.display = 'block'; setTimeout(() => btn.style.opacity = '1', 0); }
+    if(btn) { 
+      btn.style.display = 'flex';
+      btn.style.alignItems = 'center';
+      btn.style.justifyContent = 'center';
+      setTimeout(() => btn.style.opacity = '1', 10); 
+    }
   },
   hideLogoBtnHover(){
     const btn = document.getElementById('admLogoHoverBtn');
-    if(btn) { btn.style.opacity = '0'; setTimeout(() => btn.style.display = 'none', 200); }
+    if(btn) { 
+      btn.style.opacity = '0';
+      setTimeout(() => btn.style.display = 'none', 200); 
+    }
+  },
+  async changeLogoQuick(slug){
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/webp';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if(!file) return;
+      
+      const btn = document.getElementById('admLogoHoverBtn');
+      const origText = btn.textContent;
+      btn.textContent = 'Enviando...';
+      btn.style.pointerEvents = 'none';
+      btn.style.opacity = '0.6';
+      
+      try {
+        const uploadData = new FormData();
+        uploadData.append('logo', file);
+        const res = await fetch('upload.php', { method: 'POST', body: uploadData });
+        const json = await res.json();
+        
+        if(!res.ok || json.error) {
+          throw new Error(json.error || 'Erro no upload.');
+        }
+        
+        await DB.updateBarbeariaData(slug, { logoUrl: json.url });
+        _tenantInfo = await DB.refreshTenantInfo(slug);
+        T.ok('Logo atualizada com sucesso!');
+        App.render();
+      } catch(err) {
+        T.err('Erro: ' + err.message);
+      } finally {
+        btn.textContent = origText;
+        btn.style.pointerEvents = 'auto';
+        btn.style.opacity = '1';
+      }
+    };
+    input.click();
   },
   openTenantModal(){openTenantModal();},
 
