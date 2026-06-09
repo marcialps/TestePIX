@@ -1,7 +1,5 @@
 import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail } from './firebase-config.js';
 
-if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('db.js carregando...');
-
 let currentBarbeariaId = null;
 
 // Cache local temporário para a sessão para evitar milhares de reads no Firestore
@@ -196,5 +194,3 @@ export const DB = {
     await sendPasswordResetEmail(auth, email);
   }
 };
-
-if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('db.js OK - DB exportado');

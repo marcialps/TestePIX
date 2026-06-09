@@ -2,8 +2,6 @@ import { Auth } from './auth.js';
 import { DB } from './db.js';
 import { generatePixPayload, sanitizeChave } from './pix.js';
 
-if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('app.js carregando...');
-
 /* =====================================================
    UTILITÁRIOS
 ===================================================== */
@@ -254,12 +252,7 @@ const rLogin = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      ${_tenantInfo?.logoUrl ? `
-        <div style="display:flex;justify-content:center;margin-bottom:12px">
-          <img src="${_tenantInfo.logoUrl}" class="site-logo" alt="Logo">
-        </div>
-      ` : `<div class="auth-logo-wrap">💈</div>`}
-    </div>
+      <div class="auth-logo-wrap">💈</div>
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -292,12 +285,7 @@ const rRegister = () => `
 <div class="auth-page">
   <div class="auth-card">
     <div style="text-align:center;margin-bottom:28px">
-      ${_tenantInfo?.logoUrl ? `
-        <div style="display:flex;justify-content:center;margin-bottom:12px">
-          <img src="${_tenantInfo.logoUrl}" class="site-logo" alt="Logo">
-        </div>
-      ` : `<div class="auth-logo-wrap">💈</div>`}
-    </div>
+      <div class="auth-logo-wrap">💈</div>
       <span class="auth-logo-text">${esc(_tenantInfo?.name || 'SISTEMA')}</span>
       <span class="auth-logo-sub">Sistema de Agendamentos</span>
     </div>
@@ -380,7 +368,6 @@ const rHome = () => {
 <div class="page">
   <div class="container">
     <section class="hero">
-      
       <span class="slabel">✦ Bem-vindo, ${esc(u.name.split(' ')[0])}</span>
       <h1>Seu estilo,<br><span>seu horário.</span></h1>
       <p>Agende agora na ${esc(_tenantInfo?.name || 'barbearia')}. Rápido, fácil e sem espera.</p>
@@ -443,13 +430,6 @@ const rBooking = () => {
   return `
 <div class="page">
   <div class="container">
-    ${_tenantInfo?.logoUrl ? `
-      <div style="display:flex;justify-content:center;margin-bottom:18px">
-        <img src="${_tenantInfo.logoUrl}" class="site-logo" alt="Logo">
-      </div>
-    ` : `
-      <div class="site-logo-default" style="margin-bottom:18px">💈</div>
-    `}
     <div class="ph"><div><h1 class="ptitle">Novo Agendamento</h1><p class="psub">Siga os passos para reservar seu horário</p></div></div>
     <div class="wiz-steps">${stepsH}</div>
     <div class="card" style="max-width:820px;margin:0 auto">${content}</div>
@@ -687,12 +667,6 @@ const rAdmLayout = (active, content) => {
     ${items.map(it=>`<button class="btn ${active===it.id?'btn-active':''} btn-sm" onclick="Nav.go('${it.id}')">${it.i} <span>${it.l}</span></button>`).join('')}
   </div>
   <aside class="adm-sidebar">
-    <div class="sidebar-logo-area">
-      <label class="sidebar-logo-img-wrap" title="Clique para alterar a logo">
-        <input type="file" style="display:none" accept="image/*" onchange="App.uploadLogo(event)">
-        ${_tenantInfo?.logoUrl ? `<img src="${_tenantInfo.logoUrl}" class="sidebar-logo-img" alt="Logo da barbearia">` : `<div class="sidebar-logo-default">💈</div>`}
-      </label>
-    </div>
     <div class="adm-st">Painel Barbearia</div>
     ${items.map(it=>`<a href="#${it.id}" class="adm-nav-item ${active===it.id?'active':''}" onclick="Nav.go('${it.id}'); return false;">${it.i} <span>${it.l}</span></a>`).join('')}
   </aside>
@@ -766,81 +740,35 @@ const rAdmDashCal = () => {
             const ds = dStr(d);
             const dApts = allApts.filter(a => a.date === ds);
             
-            // 1. Prepare and sort events
-            const dayEvents = [];
+            let evs = '';
             dApts.forEach(apt => {
               const [h,m] = apt.time.split(':').map(Number);
               if(h < startHour || h > endHour) return;
+              
               const sv = svcs.find(s => s.id === apt.serviceId);
               const pr = pros.find(p => p.id === apt.professionalId);
               const dur = sv ? Number(sv.duration) : 30;
-              const start = (h - startHour) * 60 + m;
-              dayEvents.push({ apt, sv, pr, h, m, dur, start, end: start + dur });
-            });
-            dayEvents.sort((a,b) => a.start - b.start || a.end - b.end);
-
-            // 2. Cluster overlapping events
-            const clusters = [];
-            let currentCluster = [];
-            let clusterEnd = 0;
-            dayEvents.forEach(ev => {
-              if (currentCluster.length > 0 && ev.start >= clusterEnd) {
-                clusters.push(currentCluster);
-                currentCluster = [];
-                clusterEnd = 0;
+              
+              const top = (h - startHour) * 60 + m; // 1px = 1min
+              const height = dur;
+              
+              // Generate color based on pro ID to make it distinct
+              const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e'];
+              let colorIdx = 0;
+              if(pr) {
+                colorIdx = pr.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
               }
-              currentCluster.push(ev);
-              clusterEnd = Math.max(clusterEnd, ev.end);
-            });
-            if (currentCluster.length > 0) {
-              clusters.push(currentCluster);
-            }
-
-            // 3. Assign columns and width
-            clusters.forEach(cluster => {
-              const cols = [];
-              cluster.forEach(ev => {
-                let placed = false;
-                for (let i = 0; i < cols.length; i++) {
-                  if (cols[i][cols[i].length - 1].end <= ev.start) {
-                    cols[i].push(ev);
-                    ev.col = i;
-                    placed = true;
-                    break;
-                  }
-                }
-                if (!placed) {
-                  ev.col = cols.length;
-                  cols.push([ev]);
-                }
-              });
-              cluster.forEach(ev => {
-                ev.width = 100 / cols.length;
-                ev.left = ev.col * ev.width;
-              });
-            });
-
-            // Current time for blink
-            const now = new Date();
-            const isToday = dStr(now) === ds;
-            const currentMins = (now.getHours() - startHour) * 60 + now.getMinutes();
-
-            let evs = '';
-            dayEvents.forEach(ev => {
-              const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e', '#14b8a6', '#f97316', '#84cc16'];
-              // distinct color based on appointment ID
-              let colorIdx = ev.apt.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
               const baseColor = colors[colorIdx];
               
-              const isDone = ev.apt.status === 'concluido';
-              const clName = ev.apt.userId ? _tenantUsers.find(u=>u.id===ev.apt.userId)?.name || 'Cliente' : ev.apt.clientName || 'Cliente';
+              const isDone = apt.status === 'concluido';
+              const bg = isDone ? 'rgba(34,197,94,0.15)' : `${baseColor}22`;
+              const border = isDone ? '#22c55e' : baseColor;
+              const textC = isDone ? '#4ade80' : baseColor;
+              const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
               
-              const isHappeningNow = isToday && (currentMins >= ev.start && currentMins < ev.end);
-              const blinkClass = isHappeningNow ? ' blink-event' : '';
-              
-              evs += `<div class="dash-cal-event glass-cal-event${blinkClass}" style="top:${ev.start}px;height:${ev.dur}px;left:${ev.left}%;width:calc(${ev.width}% - 4px);background-color:${baseColor};opacity:${isDone?0.5:1}" onclick="App.dashAptClick('${ev.apt.id}')">
-                <div class="dash-cal-event-title">${isDone ? '✓ ' : ''}${esc(clName)}</div>
-                <div class="dash-cal-event-sub">${esc(ev.sv?.name||'—')} às ${p2(ev.h)}:${p2(ev.m)}</div>
+              evs += `<div class="dash-cal-event" style="top:${top}px;height:${height}px;background:${bg};border-left-color:${border};opacity:${isDone?0.8:1}" onclick="App.dashAptClick('${apt.id}')">
+                <div class="dash-cal-event-title" style="color:${textC}">${isDone ? '✓ ' : ''}${esc(clName)}</div>
+                <div class="dash-cal-event-sub" style="color:${textC}">${esc(sv?.name||'—')} às ${p2(h)}:${p2(m)}</div>
               </div>`;
             });
             
@@ -862,60 +790,19 @@ const rAdmDashCal = () => {
 const rAdmDash = () => {
   const all=DB.apts(), pros=DB.pros(), svcs=DB.services();
   const td=todayStr();
-  const now = new Date();
-  
-  const filter = App._admDashFilter || 'todos';
-  let filtered = all;
-
-  if (filter === 'dia') {
-    filtered = all.filter(a => a.date === td);
-  } else if (filter === 'semana') {
-    const start = new Date();
-    const day = start.getDay();
-    const diff = start.getDate() - day + (day === 0 ? -6 : 1);
-    start.setDate(diff);
-    start.setHours(0,0,0,0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    end.setHours(23,59,59,999);
-    
-    filtered = all.filter(a => {
-      const d = new Date(a.date + 'T12:00:00');
-      return d >= start && d <= end;
-    });
-  } else if (filter === 'mes') {
-    const month = now.getMonth();
-    const year = now.getFullYear();
-    filtered = all.filter(a => {
-      const d = new Date(a.date + 'T12:00:00');
-      return d.getMonth() === month && d.getFullYear() === year;
-    });
-  }
-
-  const rev=filtered.filter(a=>a.status!=='cancelado').reduce((s,a)=>s+Number(a.price||0),0);
-  const conf=filtered.filter(a=>a.status==='confirmado'&&a.date>=td);
-  const pixPend=filtered.filter(a=>a.pixStatus==='pendente'&&a.status!=='cancelado');
-  const pixOk=filtered.filter(a=>a.pixStatus==='pago');
+  const rev=all.filter(a=>a.status!=='cancelado').reduce((s,a)=>s+Number(a.price||0),0);
+  const conf=all.filter(a=>a.status==='confirmado'&&a.date>=td);
+  const pixPend=all.filter(a=>a.pixStatus==='pendente'&&a.status!=='cancelado');
+  const pixOk=all.filter(a=>a.pixStatus==='pago');
   const hasPix=!!(_tenantInfo?.pixConfig?.chave);
 
   return rAdmLayout('admin',`
-  <div class="ph">
-    <div><h1 class="ptitle">Dashboard</h1><p class="psub">${_tenantInfo?.name||''}</p></div>
-    <button class="btn btn-primary" onclick="App.openQuickAptModal()">+ Agendamento Rápido</button>
-  </div>
-  
-  <div class="tabs" style="margin-bottom: 20px;">
-    <div class="tab ${filter === 'dia' ? 'active' : ''}" onclick="App.setAdmDashFilter('dia')">Hoje</div>
-    <div class="tab ${filter === 'semana' ? 'active' : ''}" onclick="App.setAdmDashFilter('semana')">Esta Semana</div>
-    <div class="tab ${filter === 'mes' ? 'active' : ''}" onclick="App.setAdmDashFilter('mes')">Este Mês</div>
-    <div class="tab ${filter === 'todos' ? 'active' : ''}" onclick="App.setAdmDashFilter('todos')">Todos</div>
-  </div>
-
+  <div class="ph"><div><h1 class="ptitle">Dashboard</h1><p class="psub">${_tenantInfo?.name||''}</p></div></div>
   <div class="stats-grid">
-    <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Total Agendamentos</span></div><div class="scv">${filtered.length}</div></div>
+    <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Total Agendamentos</span></div><div class="scv">${all.length}</div></div>
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Receita Total</span></div><div class="scv" style="color:var(--success)">${fmt(rev)}</div></div>
     <div class="stat-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">Confirmados Futuros</span></div><div class="scv" style="color:var(--info)">${conf.length}</div></div>
-    ${hasPix?`<div class="stat-card" style="border-color:rgba(245,158,11,.35)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">⏳ PIX Aguardando</span></div><div class="scv" style="color:var(--warning)">${pixPend.length}</div></div>
+    ${hasPix?`<div class="stat-card" style="border-color:rgba(245,158,11,.35)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">⚡ PIX Aguardando</span></div><div class="scv" style="color:var(--warning)">${pixPend.length}</div></div>
     <div class="stat-card" style="border-color:rgba(34,197,94,.3)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span class="tsm tmuted" style="font-weight:700">✅ PIX Confirmados</span></div><div class="scv" style="color:var(--success)">${pixOk.length}</div></div>`:''}
   </div>
   ${rAdmDashCal()}
@@ -989,40 +876,10 @@ const rAdmBarbers = () => {
 const rAdmApts = () => {
   const all = [...DB.apts()].sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
   const hasPix = !!(_tenantInfo?.pixConfig?.chave);
-  const filter = App._admAptsFilter || 'todos';
 
-  let filtered = all;
-  const now = new Date();
-  const td = todayStr();
-
-  if (filter === 'dia') {
-    filtered = all.filter(a => a.date === td);
-  } else if (filter === 'semana') {
-    const start = new Date();
-    const day = start.getDay();
-    const diff = start.getDate() - day + (day === 0 ? -6 : 1);
-    start.setDate(diff);
-    start.setHours(0,0,0,0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    end.setHours(23,59,59,999);
-    
-    filtered = all.filter(a => {
-      const d = new Date(a.date + 'T12:00:00');
-      return d >= start && d <= end;
-    });
-  } else if (filter === 'mes') {
-    const month = now.getMonth();
-    const year = now.getFullYear();
-    filtered = all.filter(a => {
-      const d = new Date(a.date + 'T12:00:00');
-      return d.getMonth() === month && d.getFullYear() === year;
-    });
-  }
-
-  const emEspera = filtered.filter(a => a.status === 'confirmado');
-  const concluidos = filtered.filter(a => a.status === 'concluido');
-  const cancelados = filtered.filter(a => a.status === 'cancelado');
+  const emEspera = all.filter(a => a.status === 'confirmado');
+  const concluidos = all.filter(a => a.status === 'concluido');
+  const cancelados = all.filter(a => a.status === 'cancelado');
 
   const renderSection = (title, apts, color, icon) => `
     <div style="margin-bottom: 40px;">
@@ -1047,16 +904,7 @@ const rAdmApts = () => {
   `;
 
   return rAdmLayout('admin-appointments', `
-    <div class="ph">
-      <div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div>
-      <button class="btn btn-primary" onclick="App.openQuickAptModal()">＋ Agendamento Rápido</button>
-    </div>
-    <div class="tabs" style="margin-bottom:22px">
-      <div class="tab ${filter === 'dia' ? 'active' : ''}" onclick="App.setAdmAptsFilter('dia')">Hoje</div>
-      <div class="tab ${filter === 'semana' ? 'active' : ''}" onclick="App.setAdmAptsFilter('semana')">Esta Semana</div>
-      <div class="tab ${filter === 'mes' ? 'active' : ''}" onclick="App.setAdmAptsFilter('mes')">Este Mês</div>
-      <div class="tab ${filter === 'todos' ? 'active' : ''}" onclick="App.setAdmAptsFilter('todos')">Todos</div>
-    </div>
+    <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div></div>
     ${renderSection('Em Espera', emEspera, '#3b82f6', '⏳')}
     ${renderSection('Concluídos', concluidos, '#22c55e', '✅')}
     ${renderSection('Cancelados', cancelados, '#ef4444', '✕')}
@@ -1076,13 +924,11 @@ const rAptRows = (apts) => {
     else if(hasPix&&apt.pixStatus==='pendente') pixBadge=`<span class="badge b-warning" style="font-size:.65rem">⏳ Aguardando PIX</span>`;
     else if(hasPix) pixBadge=`<span class="badge b-grey" style="font-size:.65rem">— Sem PIX</span>`;
 
-    const clName = usr?.name || apt.clientName || '—';
-    const clPhone = usr?.phone || apt.clientPhone || '';
-    const cleanPhone = clPhone.replace(/\D/g, '');
+    const cleanPhone = (usr?.phone || '').replace(/\D/g, '');
     const waLink = cleanPhone ? `https://wa.me/55${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}` : null;
 
     return `<tr>
-      <td>${esc(clName)}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
+      <td>${esc(usr?.name||'—')}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
       <td>${fmtDate(apt.date)}</td><td>${apt.time}</td>
       <td><span class="badge ${bc}">${bl}</span></td>
       ${hasPix ? `<td>${pixBadge}</td>` : ''}
@@ -1501,83 +1347,60 @@ export const App = {
     const hash=window.location.hash.slice(1).split('?')[0]||'home';
     const app=document.getElementById('app');
     const dd=document.getElementById('userDD');if(dd)dd.remove();
-    try{
-      if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('render() hash=' + hash);
-      console.log('[App.render] Auth.cur:', Auth.cur, 'DB.getBarbeariaId():', DB.getBarbeariaId(), '_tenantInfo:', _tenantInfo);
 
-      let hasTenant = !!DB.getBarbeariaId();
-      if(!hasTenant && hash !== 'superadmin' && hash !== 'login' && hash !== 'register'){
-        if(Auth.isSuperAdmin()){ Nav.go('superadmin'); return; }
-        else if(Auth.isAdmin() && Auth.cur.barbeariaId){ window.location.href = `?b=${Auth.cur.barbeariaId}#admin`; return; }
-        else { app.innerHTML = rNoTenant(); return; }
-      }
-
-      if(!Auth.ok()&&!['login','register'].includes(hash)){window.location.hash='login';return;}
-      
-      if(Auth.ok()){
-        if(['login','register'].includes(hash)){window.location.hash=Auth.isAdmin()?'admin':'home';return;}
-        if(Auth.isAdmin() && hash === 'home') { window.location.hash='admin'; return; }
-        if(Auth.isSuperAdmin() && hash !== 'superadmin') { window.location.hash='superadmin'; return; }
-      }
-
-      app.innerHTML = '<div style="padding:100px;text-align:center;color:var(--gold)">Carregando...</div>';
-
-      let content = '';
-      if(hash==='login'){
-        // Garante que _tenantInfo é carregado mesmo sem usuário logado (para exibir a logo)
-        if(!_tenantInfo && DB.getBarbeariaId()) { _tenantInfo = await DB.refreshTenantInfo(DB.getBarbeariaId()); }
-        content=rLogin(); this._draw(app, content); this._bindAuth(); return;
-      }
-      if(hash==='register'){
-        if(!_tenantInfo && DB.getBarbeariaId()) { _tenantInfo = await DB.refreshTenantInfo(DB.getBarbeariaId()); }
-        content=rRegister(); this._draw(app, content); this._bindAuth(); return;
-      }
-      if(hash==='superadmin'){
-        content=rSuperAdmin(); this._draw(app, rNavbar() + content);
-        this._loadTenants(); return;
-      }
-
-      if(hasTenant && Auth.ok()){
-        await DB.loadServices();
-        await DB.loadPros();
-        if(Auth.isAdmin()){ await DB.loadApts(); _tenantUsers = await DB.loadTenantUsers(); }
-        else { await DB.loadUserApts(Auth.cur.id); }
-      }
-    // Se não há tenant de URL mas há usuário autenticado com barbeariaId, carrega dados dele
-    else if(!hasTenant && Auth.ok() && Auth.cur?.barbeariaId){
-      try{
-        DB.setBarbeariaId(Auth.cur.barbeariaId);
-        _tenantInfo = await DB.getBarbeariaBySlug(Auth.cur.barbeariaId);
-        if(_tenantInfo){
-          await DB.loadServices();
-          await DB.loadPros();
-          if(!Auth.isAdmin()){ await DB.loadUserApts(Auth.cur.id); }
-        }
-      }catch(e){ console.warn('[render] Erro ao carregar tenant do usuário:', e); }
+    const hasTenant = !!DB.getBarbeariaId();
+    if(!hasTenant && hash !== 'superadmin' && hash !== 'login' && hash !== 'register'){
+      if(Auth.isSuperAdmin()){ Nav.go('superadmin'); return; }
+      else if(Auth.isAdmin() && Auth.cur.barbeariaId){ window.location.href = `?b=${Auth.cur.barbeariaId}#admin`; return; }
+      else { app.innerHTML = rNoTenant(); return; }
     }
-      else if(hash==='admin-barbers') content=rAdmBarbers();
-      else if(hash==='admin-appointments') content=rAdmApts();
-      else if(hash==='admin-clients') content=rAdmClients();
-      else if(hash==='admin-reports') content=rAdmReports();
-      else if(hash==='admin-pix') content=rAdmPix();
-      else if(hash==='admin-reminders') content=rAdmReminders();
-      else content = rHome();
 
-      this._draw(app, rNavbar() + `<div style="flex:1">${content}</div>`);
-
-      // Bind PIX form se estiver na tela admin-pix
-      if(hash==='admin-pix'){
-        const pf=document.getElementById('pixFrm');
-        if(pf) pf.onsubmit = (e) => this.savePix(e);
-      }
+    if(!Auth.ok()&&!['login','register'].includes(hash)){window.location.hash='login';return;}
+    
+    if(Auth.ok()){
+      if(['login','register'].includes(hash)){window.location.hash=Auth.isAdmin()?'admin':'home';return;}
+      if(Auth.isAdmin() && hash === 'home') { window.location.hash='admin'; return; }
+      if(Auth.isSuperAdmin() && hash !== 'superadmin') { window.location.hash='superadmin'; return; }
     }
-    catch(e){
-      if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('ERRO: ' + (e.message || e));
-      console.error('[App.render] error', e);
-      if(app) app.innerHTML = `<div style="padding:40px;color:#f00;font-weight:700;font-family:monospace">ERRO: ${e.message || e}<br><br>${e.stack || ''}</div>`;
+
+    app.innerHTML = '<div style="padding:100px;text-align:center;color:var(--gold)">Carregando...</div>';
+
+    let content = '';
+    if(hash==='login'){content=rLogin(); this._draw(app, content); this._bindAuth(); return;}
+    if(hash==='register'){content=rRegister(); this._draw(app, content); this._bindAuth(); return;}
+    if(hash==='superadmin'){ 
+      content=rSuperAdmin(); this._draw(app, rNavbar() + content); 
+      this._loadTenants(); return; 
+    }
+
+    if(hasTenant && Auth.ok()){
+      await DB.loadServices();
+      await DB.loadPros();
+      if(Auth.isAdmin()){ await DB.loadApts(); _tenantUsers = await DB.loadTenantUsers(); } 
+      else { await DB.loadUserApts(Auth.cur.id); }
+    }
+
+    if(hash==='home') content=rHome();
+    else if(hash==='booking') content=rBooking();
+    else if(hash==='appointments') content=rAppointments();
+    else if(hash==='admin') content=rAdmDash();
+    else if(hash==='admin-services') content=rAdmServices();
+    else if(hash==='admin-barbers') content=rAdmBarbers();
+    else if(hash==='admin-appointments') content=rAdmApts();
+    else if(hash==='admin-clients') content=rAdmClients();
+    else if(hash==='admin-reports') content=rAdmReports();
+    else if(hash==='admin-pix') content=rAdmPix();
+    else if(hash==='admin-reminders') content=rAdmReminders();
+    else content = rHome();
+
+    this._draw(app, rNavbar() + `<div style="flex:1">${content}</div>`);
+
+    // Bind PIX form se estiver na tela admin-pix
+    if(hash==='admin-pix'){
+      const pf=document.getElementById('pixFrm');
+      if(pf) pf.onsubmit = (e) => this.savePix(e);
     }
   },
-
 
   _draw(app, html){ app.innerHTML = html; },
 
@@ -1815,11 +1638,7 @@ export const App = {
     }
     if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
     try {
-          ${_tenantInfo?.logoUrl ? `
-            <div style="display:flex;justify-content:center;margin-bottom:18px">
-              <img src="${_tenantInfo.logoUrl}" class="site-logo" alt="Logo">
-            </div>
-          ` : `<div class="site-logo-default" style="margin-bottom:18px">💈</div>`}
+      await DB.sendOwnerPasswordReset(email);
       if(msgEl) {
         msgEl.textContent = '✅ Link enviado! O dono deve verificar o e-mail (incluindo caixa de spam).';
         msgEl.style.color = 'var(--success)';
@@ -1940,78 +1759,6 @@ export const App = {
   },
 
   // Admin Methods
-  openQuickAptModal() {
-    const svcs = DB.services();
-    const pros = DB.pros();
-    const today = todayStr();
-
-    document.getElementById('modalRoot').innerHTML = `
-    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
-      <div class="modal">
-        <div class="modal-head"><h3 class="modal-title">Agendamento Rápido</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
-        <form id="quickAptFrm">
-          <div class="fg"><label class="flabel">Nome do Cliente *</label><input type="text" name="clientName" class="fc" required placeholder="Ex: João da Silva"></div>
-          <div class="fg"><label class="flabel">Telefone (opcional)</label><input type="tel" name="clientPhone" class="fc" placeholder="(11) 99999-9999"></div>
-          <div class="fg"><label class="flabel">Serviço *</label>
-            <select name="serviceId" class="fc" required>
-              <option value="">Selecione o serviço...</option>
-              ${svcs.map(s => `<option value="${s.id}">${esc(s.name)} - ${fmt(s.price)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fg"><label class="flabel">Profissional *</label>
-            <select name="professionalId" class="fc" required>
-              <option value="">Selecione o barbeiro...</option>
-              ${pros.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fg" style="display:flex;gap:10px">
-            <div style="flex:1"><label class="flabel">Data *</label><input type="date" name="date" class="fc" required value="${today}"></div>
-            <div style="flex:1"><label class="flabel">Horário *</label><input type="time" name="time" class="fc" required></div>
-          </div>
-          <button type="submit" class="btn btn-primary w-full btn-lg" style="margin-top:10px">Confirmar Agendamento</button>
-        </form>
-      </div>
-    </div>`;
-
-    document.getElementById('quickAptFrm').onsubmit = async e => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const svcId = fd.get('serviceId');
-      const sv = svcs.find(s => s.id === svcId);
-
-      const apt = {
-        clientName: fd.get('clientName'),
-        clientPhone: fd.get('clientPhone'),
-        serviceId: svcId,
-        professionalId: fd.get('professionalId'),
-        date: fd.get('date'),
-        time: fd.get('time'),
-        status: 'confirmado',
-        createdAt: new Date().toISOString(),
-        price: sv ? sv.price : 0,
-        pixStatus: 'nao_aplicavel',
-        userId: null
-      };
-
-      const btn = e.target.querySelector('button[type="submit"]');
-      const oldTxt = btn.innerHTML;
-      btn.innerHTML = 'Salvando...';
-      btn.disabled = true;
-
-      try {
-        await DB.addApt(apt);
-        App.closeModal();
-        T.ok('Agendamento rápido criado com sucesso!');
-        App.render();
-      } catch (err) {
-        console.error(err);
-        T.err('Erro ao criar agendamento.');
-        btn.innerHTML = oldTxt;
-        btn.disabled = false;
-      }
-    };
-  },
-
   openSvcModal(id=null){
     const s=id?DB.services().find(x=>x.id===id):null;
     document.getElementById('modalRoot').innerHTML = `
@@ -2402,16 +2149,6 @@ export const App = {
     this.render();
   },
 
-  setAdmDashFilter(filter){
-    this._admDashFilter = filter;
-    this.render();
-  },
-
-  setAdmAptsFilter(filter){
-    this._admAptsFilter = filter;
-    this.render();
-  },
-
   // --- Lembretes WhatsApp ---
   setRemindersFilter(filter){
     this._remindersFilter = filter;
@@ -2462,34 +2199,6 @@ export const App = {
   },
   toggleMob(){const m=document.getElementById('mobMenu');if(m)m.classList.toggle('open');},
   closeMob(){const m=document.getElementById('mobMenu');if(m)m.classList.remove('open');},
-  async uploadLogo(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const formData = new FormData();
-      formData.append('logo', file);
-      const res = await fetch('upload.php', { method: 'POST', body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) {
-          await DB.updateBarbeariaData(_tenantInfo.id, { logoUrl: data.url });
-          _tenantInfo.logoUrl = data.url;
-          App.render();
-          return;
-        }
-      }
-    } catch(err) {
-      console.warn("Upload.php falhou. Usando Base64 fallback.", err);
-    }
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result;
-      await DB.updateBarbeariaData(_tenantInfo.id, { logoUrl: base64 });
-      _tenantInfo.logoUrl = base64;
-      App.render();
-    };
-    reader.readAsDataURL(file);
-  },
   closeModal(){
     if (window._currentCameraStream) {
       try {
@@ -2505,8 +2214,7 @@ export const App = {
 
   // Init
   async init(){
-    window.App = this;
-    if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('App.init() chamado');
+    window.App = this; 
     const params = new URLSearchParams(window.location.search);
     const tenantId = params.get('b');
     
@@ -2516,15 +2224,9 @@ export const App = {
       if(!_tenantInfo || _tenantInfo.status !== 'active') { document.getElementById('app').innerHTML = rNoTenant(); return; }
     }
 
-    if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('Auth.init() iniciando...');
-    Auth.init((user) => { 
-      if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('Auth callback recebeu: ' + (user ? user.email : 'null'));
-      this.render(); 
-    });
+    Auth.init((user) => { this.render(); });
     window.addEventListener('hashchange',()=>this.render());
-    if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('App.init() pronto');
   }
 };
 
-if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('app.js OK - App definido, chamando App.init()...');
 App.init();

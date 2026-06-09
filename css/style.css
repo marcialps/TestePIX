@@ -48,7 +48,6 @@ input,select,textarea,button{font-family:var(--fb)}
 .container{max-width:1200px;margin:0 auto;padding:0 20px;width:100%}
 .page{flex:1;padding:30px 0;animation:fadeUp .3s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fadeIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes slideInR{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -381,77 +380,6 @@ textarea.fc{resize:vertical;min-height:72px}
   height:calc(100vh - 64px);overflow-y:auto;
 }
 .adm-st{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text3);padding:0 10px;margin-bottom:7px}
-
-/* =========================================
-   SIDEBAR LOGO AREA
-========================================= */
-.sidebar-logo-area{
-  padding:16px 10px 20px;
-  border-bottom:1px solid rgba(255,255,255,.06);
-  margin-bottom:14px;
-  text-align:center;
-}
-.sidebar-logo-img-wrap{
-  position:relative;
-  border-radius:12px;
-  overflow:hidden;
-  margin-bottom:8px;
-  cursor:pointer;
-}
-.sidebar-logo-img-wrap::after{
-  content:'✏️ Alterar';
-  position:absolute;inset:0;
-  background:rgba(0,0,0,.6);
-  display:flex;align-items:center;justify-content:center;
-  font-size:.75rem;font-weight:700;color:#fff;letter-spacing:.5px;
-  opacity:0;transition:var(--tr);
-}
-.sidebar-logo-img-wrap:hover::after{opacity:1}
-.sidebar-logo-img{
-  width:100%;
-  max-height:220px;
-  height:160px;
-  object-fit:cover;
-  display:block;
-  border-radius:12px;
-  border:1px solid rgba(255,255,255,.07);
-  background:var(--bg3);
-}
-
-.sidebar-logo-default{
-  width:100%;
-  height:160px;
-  display:flex;align-items:center;justify-content:center;
-  background:var(--gold);color:#000;font-size:2.1rem;border-radius:12px;
-  box-shadow:0 8px 24px rgba(201,162,39,.25);border:1px solid rgba(0,0,0,.06);
-}
-
-.site-logo{
-  max-width:240px;max-height:240px;width:auto;height:120px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.06);box-shadow:0 12px 36px rgba(201,162,39,.18);
-}
-.site-logo-default{
-  width:120px;height:120px;border-radius:18px;background:var(--gold);display:flex;align-items:center;justify-content:center;color:#000;font-size:2rem;box-shadow:0 12px 36px rgba(201,162,39,.18);border:1px solid rgba(0,0,0,.06);
-}
-.sidebar-logo-change-btn{
-  display:block;
-  font-size:.73rem;color:var(--text3);
-  cursor:pointer;transition:var(--tr);
-  padding:4px;border-radius:6px;
-}
-.sidebar-logo-change-btn:hover{color:var(--gold)}
-.sidebar-logo-add-btn{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  width:100%;padding:22px 12px;
-  border:1.5px dashed var(--border2);border-radius:12px;
-  cursor:pointer;transition:var(--tr);
-  color:var(--text3);font-size:.78rem;font-weight:500;
-  background:rgba(255,255,255,.02);
-  gap:2px;line-height:1.4;
-}
-.sidebar-logo-add-btn:hover{
-  border-color:var(--gold);color:var(--gold);
-  background:var(--ga1);
-}
 .adm-nav-item{
   display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--r2);
   color:var(--text2);font-size:.875rem;font-weight:500;cursor:pointer;
@@ -763,40 +691,21 @@ input:checked + .toggle-slider:before {
 .dash-cal-nav { display:flex; align-items:center; gap:10px; }
 .dash-cal-nav button { padding:4px 8px; font-size:1.1rem; }
 .dash-cal-title { font-weight:700; font-family:var(--ft); color:var(--gold); }
-.dash-cal-wrap { border:1px solid rgba(255,255,255,0.08); border-radius:var(--r2); background:rgba(255,255,255,0.03); backdrop-filter:blur(8px); overflow:hidden; display:flex; flex-direction:column; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+.dash-cal-wrap { border:1px solid var(--border); border-radius:var(--r2); background:var(--bg3); overflow:hidden; display:flex; flex-direction:column; margin-bottom: 20px; }
 .dash-cal-scrollable-container { overflow-x:auto; width:100%; scrollbar-width:thin; }
-.dash-cal-header { display:flex; border-bottom:1px solid rgba(255,255,255,0.05); background:transparent; }
-.dash-cal-header-spacer { width:60px; flex-shrink:0; border-right:1px solid rgba(255,255,255,0.05); position:sticky; left:0; background:rgba(20,20,20,0.6); backdrop-filter:blur(5px); z-index: 5; }
-.dash-cal-body { display:flex; overflow-y:auto; max-height:500px; position:relative; background:transparent; }
-.dash-cal-time-col { width:60px; flex-shrink:0; border-right:1px solid rgba(255,255,255,0.05); background:rgba(20,20,20,0.6); backdrop-filter:blur(5px); position: sticky; left: 0; z-index: 5; }
-.dash-cal-time-cell { height:60px; display:flex; align-items:flex-start; justify-content:center; padding-top:6px; font-size:0.75rem; color:var(--text3); border-bottom:1px solid rgba(255,255,255,0.05); box-sizing: border-box; }
+.dash-cal-header { display:flex; border-bottom:1px solid var(--border); background:var(--bg3); }
+.dash-cal-header-spacer { width:60px; flex-shrink:0; border-right:1px solid var(--border); position:sticky; left:0; background:var(--bg3); z-index: 5; }
+.dash-cal-body { display:flex; overflow-y:auto; max-height:500px; position:relative; background:var(--bg4); }
+.dash-cal-time-col { width:60px; flex-shrink:0; border-right:1px solid var(--border); background:var(--bg3); position: sticky; left: 0; z-index: 5; }
+.dash-cal-time-cell { height:60px; display:flex; align-items:flex-start; justify-content:center; padding-top:6px; font-size:0.75rem; color:var(--text3); border-bottom:1px solid var(--border); box-sizing: border-box; }
 .dash-cal-days { display:flex; flex:1; min-width: 600px; }
-.dash-cal-day-col { flex:1; border-right:1px solid rgba(255,255,255,0.05); position:relative; box-sizing: border-box; }
+.dash-cal-day-col { flex:1; border-right:1px solid var(--border); position:relative; box-sizing: border-box; }
 .dash-cal-day-col:last-child { border-right:none; }
-.dash-cal-day-header { flex:1; text-align:center; padding:10px 4px; font-size:0.85rem; font-weight:600; border-right:1px solid rgba(255,255,255,0.05); color:var(--text2); }
-.dash-cal-day-header.active { background:rgba(201,162,39,.1); color:var(--gold); }
+.dash-cal-day-header { flex:1; text-align:center; padding:10px 4px; font-size:0.85rem; font-weight:600; border-right:1px solid var(--border); color:var(--text2); }
+.dash-cal-day-header:last-child { border-right:none; }
 .dash-cal-grid-lines { position:absolute; inset:0; pointer-events:none; }
-.dash-cal-grid-line { height:60px; border-bottom:1px solid rgba(255,255,255,0.05); opacity:1; box-sizing: border-box; }
-.dash-cal-event { position:absolute; left:4px; right:4px; border-radius:6px; padding:2px; font-size:0.75rem; overflow:hidden; cursor:pointer; transition:var(--tr); border-left:none; box-shadow:0 3px 6px rgba(0,0,0,.2); z-index:2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-
-.glass-cal-event {
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255,255,255,0.15);
-  margin-left: 2px;
-}
-
-@keyframes blinkEvent {
-  0% { filter: brightness(1); box-shadow: 0 0 5px rgba(255,255,255,0.1); }
-  50% { filter: brightness(1.5); box-shadow: 0 0 15px rgba(255,255,255,0.6); transform: scale(1.02); z-index: 10; }
-  100% { filter: brightness(1); box-shadow: 0 0 5px rgba(255,255,255,0.1); }
-}
-
-.blink-event {
-  animation: blinkEvent 2s infinite ease-in-out;
-  border-color: rgba(255,255,255,0.5);
-  z-index: 4;
-}
-
+.dash-cal-grid-line { height:60px; border-bottom:1px solid var(--border); opacity:0.5; box-sizing: border-box; }
+.dash-cal-event { position:absolute; left:4px; right:4px; border-radius:6px; padding:2px; font-size:0.75rem; overflow:hidden; cursor:pointer; transition:var(--tr); border-left:4px solid transparent; box-shadow:0 3px 6px rgba(0,0,0,.2); z-index:2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
 .dash-cal-event:hover { filter:brightness(1.1); transform:scale(1.02); z-index:10; box-shadow:0 5px 12px rgba(0,0,0,.3); }
 .dash-cal-event-title { font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size: 0.75rem; width: 100%; line-height: 1.2; }
 .dash-cal-event-sub { color:rgba(255,255,255,.8); font-size:0.65rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 100%; line-height: 1.2; }

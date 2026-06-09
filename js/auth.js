@@ -1,8 +1,6 @@
 import { auth, db, doc, getDoc, setDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup } from './firebase-config.js';
 import { DB } from './db.js';
 
-if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('auth.js carregando...');
-
 export const Auth = {
   cur: null,
   
@@ -118,5 +116,3 @@ export const Auth = {
     return !!this.cur;
   }
 };
-
-if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('auth.js OK - Auth exportado');
