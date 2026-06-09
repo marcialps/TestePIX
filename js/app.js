@@ -1500,7 +1500,13 @@ export const App = {
     const app=document.getElementById('app');
     const dd=document.getElementById('userDD');if(dd)dd.remove();
 
-    const hasTenant = !!DB.getBarbeariaId();
+    let hasTenant = !!DB.getBarbeariaId();
+    // If no tenant in URL, but user is logged and belongs to a barbearia, use that
+    if(!hasTenant && Auth.ok() && Auth.cur?.barbeariaId){
+      DB.setBarbeariaId(Auth.cur.barbeariaId);
+      _tenantInfo = await DB.getBarbeariaBySlug(Auth.cur.barbeariaId);
+      hasTenant = !!_tenantInfo;
+    }
     if(!hasTenant && hash !== 'superadmin' && hash !== 'login' && hash !== 'register'){
       if(Auth.isSuperAdmin()){ Nav.go('superadmin'); return; }
       else if(Auth.isAdmin() && Auth.cur.barbeariaId){ window.location.href = `?b=${Auth.cur.barbeariaId}#admin`; return; }
