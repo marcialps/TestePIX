@@ -63,7 +63,14 @@ export const sanitizeChave = (tipo, chave) => {
  * Gera o payload PIX Copia e Cola (QR Estático — campo 01 = 11)
  * conforme Manual de Padrões para Iniciação do Pix do BACEN.
  */
-export const generatePixPayload = ({ chave, nome, cidade, valor = 0, txId = '', desc = '' }) => {
+export function generatePixPayload(payload) {
+  const chave = payload.chave;
+  const nome = payload.nome;
+  const cidade = payload.cidade;
+  const valor = payload.valor || 0;
+  const txId = payload.txId || '';
+  const desc = payload.desc || '';
+  
   if (!chave) throw new Error('Chave PIX obrigatória.');
 
   // Campo 26 — Merchant Account Info
@@ -80,7 +87,7 @@ export const generatePixPayload = ({ chave, nome, cidade, valor = 0, txId = '', 
   // Campo 62 — Additional Data (txId)
   const additionalData = emvField('62', emvField('05', safeTxId(txId)));
 
-  const payload = [
+  const finalPayload = [
     emvField('00', '01'),              // Payload Format Indicator
     emvField('01', '11'),              // QR Estático
     merchantInfo,
@@ -94,10 +101,10 @@ export const generatePixPayload = ({ chave, nome, cidade, valor = 0, txId = '', 
     '6304',                            // CRC placeholder
   ].join('');
 
-  const result = payload + crc16(payload);
+  const result = finalPayload + crc16(finalPayload);
   console.log('[PIX] Payload gerado:', result);
   console.log('[PIX] Chave usada:', chave, '| Nome:', clean(nome,25), '| Cidade:', clean(cidade,15));
   return result;
-};
+}
 
 if(typeof window !== 'undefined' && window.DEBUG) window.DEBUG('pix.js OK - funções PIX exportadas');
