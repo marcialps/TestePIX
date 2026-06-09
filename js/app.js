@@ -2,6 +2,8 @@ import { Auth } from './auth.js';
 import { DB } from './db.js';
 import { generatePixPayload, sanitizeChave } from './pix.js';
 
+window.DEBUG?.('app.js carregando...');
+
 /* =====================================================
    UTILITÁRIOS
 ===================================================== */
@@ -2524,4 +2526,5 @@ export const App = {
   }
 };
 
+window.DEBUG?.('app.js OK - App definido, chamando App.init()...');
 App.init();

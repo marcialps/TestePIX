@@ -1,3 +1,5 @@
+window.DEBUG?.('pix.js carregando...');
+
 /* =====================================================
    GERADOR DE PAYLOAD PIX — Padrão EMV/BACEN
 ===================================================== */
@@ -97,3 +99,5 @@ export const generatePixPayload = ({ chave, nome, cidade, valor = 0, txId = '', 
   console.log('[PIX] Chave usada:', chave, '| Nome:', clean(nome,25), '| Cidade:', clean(cidade,15));
   return result;
 };
+
+window.DEBUG?.('pix.js OK - funções PIX exportadas');
