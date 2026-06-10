@@ -720,6 +720,23 @@ const rAdmDashCal = () => {
   const pros = DB.pros();
   const svcs = DB.services();
 
+  // Generate random non-repeating colors for each appointment card
+  const usedColors = new Set();
+  const getRandomCardColor = () => {
+    const colors = [
+      '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e',
+      '#6366f1', '#14b8a6', '#f97316', '#84cc16', '#06b6d4', '#d946ef', '#eab308'
+    ];
+    const availableColors = colors.filter(c => !usedColors.has(c));
+    if (availableColors.length === 0) {
+      usedColors.clear();
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+    const color = availableColors[Math.floor(Math.random() * availableColors.length)];
+    usedColors.add(color);
+    return color;
+  };
+
   // Create grid lines (07:00 to 22:00)
   const startHour = 7;
   const endHour = 22;
@@ -769,13 +786,8 @@ const rAdmDashCal = () => {
               const top = (h - startHour) * 90 + (m * 1.5); // 1.5px = 1min
               const height = dur * 1.5;
               
-              // Generate color based on pro ID to make it distinct
-              const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#f43f5e'];
-              let colorIdx = 0;
-              if(pr) {
-                colorIdx = pr.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-              }
-              const baseColor = colors[colorIdx];
+              // Use random non-repeating color for each card
+              const baseColor = getRandomCardColor();
               
               const isDone = apt.status === 'concluido';
               const bg = isDone ? 'rgba(34,197,94,0.15)' : `${baseColor}22`;
@@ -932,32 +944,6 @@ const rAptRows = (apts) => {
   if(!apts.length) return `<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--text2)">Nenhum agendamento encontrado.</td></tr>`;
   const svcs=DB.services(), pros=DB.pros();
   const hasPix=!!(_tenantInfo?.pixConfig?.chave);
-  
-  // Generate random non-repeating colors for each appointment
-  const usedColors = new Set();
-  const getRandomColor = () => {
-    const colors = [
-      'rgba(201,162,39,0.08)',   // Gold
-      'rgba(59,130,246,0.08)',    // Blue
-      'rgba(34,197,94,0.08)',     // Green
-      'rgba(168,85,247,0.08)',    // Purple
-      'rgba(245,158,11,0.08)',    // Orange
-      'rgba(6,182,212,0.08)',     // Cyan
-      'rgba(239,68,68,0.08)',     // Red
-      'rgba(236,72,153,0.08)',    // Pink
-      'rgba(16,185,129,0.08)',    // Emerald
-      'rgba(139,92,246,0.08)',    // Violet
-    ];
-    const availableColors = colors.filter(c => !usedColors.has(c));
-    if (availableColors.length === 0) {
-      usedColors.clear();
-      return colors[Math.floor(Math.random() * colors.length)];
-    }
-    const color = availableColors[Math.floor(Math.random() * availableColors.length)];
-    usedColors.add(color);
-    return color;
-  };
-  
   return apts.map(apt=>{
     const sv=svcs.find(s=>s.id===apt.serviceId), pr=pros.find(p=>p.id===apt.professionalId), usr=_tenantUsers.find(u=>u.id===apt.userId);
     const [bc,bl]=apt.status==='confirmado'?['b-success','Confirmado']:apt.status==='cancelado'?['b-danger','Cancelado']:['b-info','Concluído'];
@@ -972,9 +958,8 @@ const rAptRows = (apts) => {
     
     // Use clientName if available, otherwise use user name, otherwise show dash
     const clientName = apt.clientName || usr?.name || '—';
-    const rowColor = getRandomColor();
 
-    return `<tr style="background:${rowColor}">
+    return `<tr>
       <td>${esc(clientName)}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
       <td>${fmtDate(apt.date)}</td><td>${apt.time}</td>
       <td><span class="badge ${bc}">${bl}</span></td>
