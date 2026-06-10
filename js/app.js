@@ -932,6 +932,32 @@ const rAptRows = (apts) => {
   if(!apts.length) return `<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--text2)">Nenhum agendamento encontrado.</td></tr>`;
   const svcs=DB.services(), pros=DB.pros();
   const hasPix=!!(_tenantInfo?.pixConfig?.chave);
+  
+  // Generate random non-repeating colors for each appointment
+  const usedColors = new Set();
+  const getRandomColor = () => {
+    const colors = [
+      'rgba(201,162,39,0.08)',   // Gold
+      'rgba(59,130,246,0.08)',    // Blue
+      'rgba(34,197,94,0.08)',     // Green
+      'rgba(168,85,247,0.08)',    // Purple
+      'rgba(245,158,11,0.08)',    // Orange
+      'rgba(6,182,212,0.08)',     // Cyan
+      'rgba(239,68,68,0.08)',     // Red
+      'rgba(236,72,153,0.08)',    // Pink
+      'rgba(16,185,129,0.08)',    // Emerald
+      'rgba(139,92,246,0.08)',    // Violet
+    ];
+    const availableColors = colors.filter(c => !usedColors.has(c));
+    if (availableColors.length === 0) {
+      usedColors.clear();
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+    const color = availableColors[Math.floor(Math.random() * availableColors.length)];
+    usedColors.add(color);
+    return color;
+  };
+  
   return apts.map(apt=>{
     const sv=svcs.find(s=>s.id===apt.serviceId), pr=pros.find(p=>p.id===apt.professionalId), usr=_tenantUsers.find(u=>u.id===apt.userId);
     const [bc,bl]=apt.status==='confirmado'?['b-success','Confirmado']:apt.status==='cancelado'?['b-danger','Cancelado']:['b-info','Concluído'];
@@ -943,9 +969,13 @@ const rAptRows = (apts) => {
 
     const cleanPhone = (usr?.phone || '').replace(/\D/g, '');
     const waLink = cleanPhone ? `https://wa.me/55${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}` : null;
+    
+    // Use clientName if available, otherwise use user name, otherwise show dash
+    const clientName = apt.clientName || usr?.name || '—';
+    const rowColor = getRandomColor();
 
-    return `<tr>
-      <td>${esc(usr?.name||'—')}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
+    return `<tr style="background:${rowColor}">
+      <td>${esc(clientName)}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
       <td>${fmtDate(apt.date)}</td><td>${apt.time}</td>
       <td><span class="badge ${bc}">${bl}</span></td>
       ${hasPix ? `<td>${pixBadge}</td>` : ''}
