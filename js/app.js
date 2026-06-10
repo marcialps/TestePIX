@@ -774,17 +774,58 @@ const rAdmDashCal = () => {
             const ds = dStr(d);
             const dApts = allApts.filter(a => a.date === ds);
             
-            let evs = '';
-            dApts.forEach(apt => {
+            // Calculate overlapping appointments and their positions
+            const processedApts = dApts.map(apt => {
               const [h,m] = apt.time.split(':').map(Number);
-              if(h < startHour || h > endHour) return;
+              if(h < startHour || h > endHour) return null;
               
               const sv = svcs.find(s => s.id === apt.serviceId);
-              const pr = pros.find(p => p.id === apt.professionalId);
               const dur = sv ? Number(sv.duration) : 30;
               
-              const top = (h - startHour) * 90 + (m * 1.5); // 1.5px = 1min
-              const height = dur * 1.5;
+              const startMinutes = h * 60 + m;
+              const endMinutes = startMinutes + dur;
+              
+              return {
+                ...apt,
+                startMinutes,
+                endMinutes,
+                top: (h - startHour) * 90 + (m * 1.5),
+                height: dur * 1.5
+              };
+            }).filter(Boolean);
+            
+            // Group overlapping appointments
+            const groups = [];
+            processedApts.forEach(apt => {
+              let added = false;
+              for (let group of groups) {
+                const overlaps = group.some(g => 
+                  !(apt.endMinutes <= g.startMinutes || apt.startMinutes >= g.endMinutes)
+                );
+                if (overlaps) {
+                  group.push(apt);
+                  added = true;
+                  break;
+                }
+              }
+              if (!added) {
+                groups.push([apt]);
+              }
+            });
+            
+            // Calculate positions for each group
+            groups.forEach(group => {
+              const count = group.length;
+              group.forEach((apt, idx) => {
+                apt.left = (idx / count) * 100;
+                apt.width = 100 / count;
+              });
+            });
+            
+            let evs = '';
+            processedApts.forEach(apt => {
+              const sv = svcs.find(s => s.id === apt.serviceId);
+              const pr = pros.find(p => p.id === apt.professionalId);
               
               // Use random non-repeating color for each card
               const baseColor = getRandomCardColor();
@@ -794,8 +835,9 @@ const rAdmDashCal = () => {
               const border = isDone ? '#22c55e' : baseColor;
               const textC = isDone ? '#4ade80' : baseColor;
               const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
+              const [h,m] = apt.time.split(':').map(Number);
               
-              evs += `<div class="dash-cal-event" style="top:${top}px;height:${height}px;background:${bg};border-left-color:${border};opacity:${isDone?0.8:1}" onclick="App.dashAptClick('${apt.id}')">
+              evs += `<div class="dash-cal-event" style="top:${apt.top}px;height:${apt.height}px;left:${apt.left}%;width:${apt.width}%;background:${bg};border-left-color:${border};opacity:${isDone?0.8:1}" onclick="App.dashAptClick('${apt.id}')">
                 <div class="dash-cal-event-title" style="color:${textC}">${isDone ? '✓ ' : ''}${esc(clName)}</div>
                 <div class="dash-cal-event-sub" style="color:${textC}">${esc(sv?.name||'—')} às ${p2(h)}:${p2(m)}</div>
               </div>`;
