@@ -1010,6 +1010,7 @@ const rAptRows = (apts) => {
         ${waLink ? `<a href="${waLink}" target="_blank" class="btn btn-sm" style="background:#25d366;color:#fff;gap:5px">${wsIcon} Contato</a>` : ''}
         ${apt.status!=='cancelado'?`<button class="btn btn-danger btn-sm" onclick="App.admCancel('${apt.id}')">Cancelar</button>`:''}
         ${apt.status==='confirmado'?`<button class="btn btn-success btn-sm" onclick="App.admComplete('${apt.id}')">Concluir</button>`:''}
+        <button class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="App.admDelete('${apt.id}')">Excluir</button>
         ${hasPix&&apt.pixStatus==='pendente'?`<button class="btn btn-sm" style="background:var(--warning);color:#000" onclick="App.admMarkPixPaid('${apt.id}')">✓ PIX Pago</button>`:''}
       </div></td>
     </tr>`;
@@ -2234,6 +2235,13 @@ export const App = {
     await DB.updateAptStatus(id, 'concluido');
     T.ok('Conclुído.');
     this._renderInPlace();
+  },
+  async admDelete(id){
+    if(confirm('Excluir este agendamento permanentemente? Esta ação não pode ser desfeita.')){
+      await DB.deleteApt(id);
+      T.ok('Agendamento excluído.');
+      this._renderInPlace();
+    }
   },
 
   setDashCalView(view) {

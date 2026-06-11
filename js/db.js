@@ -188,6 +188,11 @@ export const DB = {
     const idx = cache.apts.findIndex(a => a.id === id);
     if (idx >= 0) cache.apts[idx].pixStatus = pixStatus;
   },
+  async deleteApt(id) {
+    await deleteDoc(doc(db, 'appointments', id));
+    const idx = cache.apts.findIndex(a => a.id === id);
+    if (idx >= 0) cache.apts.splice(idx, 1);
+  },
 
   // ==============================
   // USUÁRIOS (Consulta para Admins)
