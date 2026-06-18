@@ -174,6 +174,7 @@ const rNavbar = () => {
   const hash=window.location.hash.slice(1).split('?')[0];
   const isAdm=Auth.isAdmin();
   const isSuper=Auth.isSuperAdmin();
+  const isBarber=Auth.isBarber();
   
   let desktopLinks = [];
   let mobileLinks = [];
@@ -197,6 +198,17 @@ const rNavbar = () => {
       {h:'admin-reports',l:'Relatórios',i:'📊'},
       {h:'admin-pix',l:'Configurações PIX',i:'⚡'},
       {h:'admin-reminders',l:'Lembretes Whats',i:'💬'}
+    ];
+  } else if(isBarber) {
+    desktopLinks = [
+      {h:'barber-schedule',l:'Minha Agenda',i:'📅'},
+      {h:'barber-earnings',l:'Meus Ganhos',i:'💰'},
+      {h:'barber-clients',l:'Meus Clientes',i:'👥'}
+    ];
+    mobileLinks = [
+      {h:'barber-schedule',l:'Minha Agenda',i:'📅'},
+      {h:'barber-earnings',l:'Meus Ganhos',i:'💰'},
+      {h:'barber-clients',l:'Meus Clientes',i:'👥'}
     ];
   } else {
     desktopLinks = [
@@ -655,6 +667,252 @@ const rAppointments = () => {
 };
 
 /* =====================================================
+   BARBER SCREENS
+===================================================== */
+const rBarberSchedule = () => {
+  const u = Auth.cur;
+  const td = todayStr();
+  const svcs = DB.services();
+  const pros = DB.pros();
+  
+  // Find the professional record linked to this barber user
+  const pro = pros.find(p => p.userId === u.id);
+  if (!pro) {
+    return `<div class="page"><div class="container">
+      <div class="ph"><div><h1 class="ptitle">Minha Agenda</h1></div></div>
+      <div style="text-align:center;padding:40px;color:var(--text2)">
+        <div style="font-size:3rem;margin-bottom:16px">⚠️</div>
+        <p>Seu usuário não está vinculado a um perfil de barbeiro.</p>
+        <p>Entre em contato com o administrador.</p>
+      </div>
+    </div></div>`;
+  }
+  
+  // Filter appointments for this barber only
+  const allApts = DB.apts().filter(a => a.professionalId === pro.id && a.status !== 'cancelado');
+  const upcoming = allApts.filter(a => a.date >= td).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  const past = allApts.filter(a => a.date < td).sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+
+  const rCard = (apt) => {
+    const sv = svcs.find(s => s.id === apt.serviceId);
+    const user = _tenantUsers.find(u => u.id === apt.userId);
+    const dm = dayMonth(apt.date);
+    const [bc, bl] = apt.status === 'confirmado' ? ['b-success', 'Confirmado'] : apt.status === 'cancelado' ? ['b-danger', 'Cancelado'] : ['b-info', 'Concluído'];
+    
+    return `
+    <div class="apt-card">
+      <div class="apt-dbox"><div class="apt-day">${dm.day}</div><div class="apt-mon">${dm.mon}</div></div>
+      <div style="flex:1;min-width:0">
+        <div class="apt-svc">${esc(sv?.name || 'Serviço excluído')}</div>
+        <div class="apt-det">👤 ${esc(user?.name || 'Cliente')} · 🕐 ${apt.time}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="badge ${bc}">${bl}</span>
+          <span class="tgold" style="font-weight:700;font-size:.87rem">${fmt(apt.price)}</span>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  return `<div class="page"><div class="container">
+    <div class="ph"><div><h1 class="ptitle">Minha Agenda</h1><p class="psub">Seus agendamentos</p></div></div>
+    <div class="tabs">
+      <div class="tab active" id="tU" onclick="App.tabBarberApt('u')">Próximos (${upcoming.length})</div>
+      <div class="tab" id="tH" onclick="App.tabBarberApt('h')">Histórico (${past.length})</div>
+    </div>
+    <div id="tcU" style="display:flex;flex-direction:column;gap:11px">
+      ${upcoming.length === 0 ? `<div class="empty"><div class="empty-ico">📅</div><div class="empty-t">Nenhum agendamento futuro</div></div>` : upcoming.map(a => rCard(a)).join('')}
+    </div>
+    <div id="tcH" style="display:none;flex-direction:column;gap:11px">
+      ${past.length === 0 ? `<div class="empty"><div class="empty-ico">📅</div><div class="empty-t">Nenhum agendamento passado</div></div>` : past.map(a => rCard(a)).join('')}
+    </div>
+  </div></div>`;
+};
+
+const rBarberEarnings = () => {
+  const u = Auth.cur;
+  const pros = DB.pros();
+  const svcs = DB.services();
+  
+  // Find the professional record linked to this barber user
+  const pro = pros.find(p => p.userId === u.id);
+  if (!pro) {
+    return `<div class="page"><div class="container">
+      <div class="ph"><div><h1 class="ptitle">Meus Ganhos</h1></div></div>
+      <div style="text-align:center;padding:40px;color:var(--text2)">
+        <div style="font-size:3rem;margin-bottom:16px">⚠️</div>
+        <p>Seu usuário não está vinculado a um perfil de barbeiro.</p>
+        <p>Entre em contato com o administrador.</p>
+      </div>
+    </div></div>`;
+  }
+  
+  const td = todayStr();
+  const today = new Date();
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const monthStartStr = monthStart.toISOString().split('T')[0];
+  
+  // Filter completed appointments for this barber
+  const barberApts = DB.apts().filter(a => a.professionalId === pro.id && a.status === 'concluído');
+  
+  // Calculate earnings
+  const todayApts = barberApts.filter(a => a.date === td);
+  const todayTotal = todayApts.reduce((sum, a) => sum + Number(a.price || 0), 0);
+  
+  const weekApts = barberApts.filter(a => a.date >= weekStartStr);
+  const weekTotal = weekApts.reduce((sum, a) => sum + Number(a.price || 0), 0);
+  
+  const monthApts = barberApts.filter(a => a.date >= monthStartStr);
+  const monthTotal = monthApts.reduce((sum, a) => sum + Number(a.price || 0), 0);
+  
+  // Prepare chart data (last 7 days)
+  const chartLabels = [];
+  const chartData = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dStr = d.toISOString().split('T')[0];
+    const dayName = d.toLocaleDateString('pt-BR', { weekday: 'short' });
+    chartLabels.push(dayName);
+    const dayTotal = barberApts.filter(a => a.date === dStr).reduce((sum, a) => sum + Number(a.price || 0), 0);
+    chartData.push(dayTotal);
+  }
+  
+  // Services table
+  const recentServices = barberApts.sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time)).slice(0, 20);
+  
+  const rServiceRow = (apt) => {
+    const sv = svcs.find(s => s.id === apt.serviceId);
+    const user = _tenantUsers.find(u => u.id === apt.userId);
+    return `
+    <tr>
+      <td>${fmtDate(apt.date)}</td>
+      <td>${esc(user?.name || '—')}</td>
+      <td>${esc(sv?.name || '—')}</td>
+      <td style="font-weight:700;color:var(--gold)">${fmt(apt.price)}</td>
+    </tr>`;
+  };
+
+  return `<div class="page"><div class="container">
+    <div class="ph"><div><h1 class="ptitle">Meus Ganhos</h1><p class="psub">Seus rendimentos</p></div></div>
+    
+    <div class="grid g3" style="margin-bottom:24px">
+      <div class="card" style="text-align:center;padding:24px">
+        <div style="font-size:.8rem;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Hoje</div>
+        <div style="font-size:2rem;font-weight:700;font-family:var(--ft);color:var(--gold)">${fmt(todayTotal)}</div>
+      </div>
+      <div class="card" style="text-align:center;padding:24px">
+        <div style="font-size:.8rem;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Esta Semana</div>
+        <div style="font-size:2rem;font-weight:700;font-family:var(--ft);color:var(--gold)">${fmt(weekTotal)}</div>
+      </div>
+      <div class="card" style="text-align:center;padding:24px">
+        <div style="font-size:.8rem;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Este Mês</div>
+        <div style="font-size:2rem;font-weight:700;font-family:var(--ft);color:var(--gold)">${fmt(monthTotal)}</div>
+      </div>
+    </div>
+    
+    <div class="card" style="margin-bottom:24px;padding:20px">
+      <h3 style="font-family:var(--ft);font-size:1.1rem;margin-bottom:16px">Últimos 7 dias</h3>
+      <div style="height:250px">
+        <canvas id="barberEarningsChart"></canvas>
+      </div>
+    </div>
+    
+    <div class="card" style="padding:20px">
+      <h3 style="font-family:var(--ft);font-size:1.1rem;margin-bottom:16px">Serviços Realizados</h3>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th style="text-align:left;padding:12px 8px;font-size:.85rem;color:var(--text2)">Data</th>
+              <th style="text-align:left;padding:12px 8px;font-size:.85rem;color:var(--text2)">Cliente</th>
+              <th style="text-align:left;padding:12px 8px;font-size:.85rem;color:var(--text2)">Serviço</th>
+              <th style="text-align:right;padding:12px 8px;font-size:.85rem;color:var(--text2)">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${recentServices.length === 0 ? '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text2)">Nenhum serviço realizado</td></tr>' : recentServices.map(a => rServiceRow(a)).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div></div>`;
+};
+
+const rBarberClients = () => {
+  const u = Auth.cur;
+  const pros = DB.pros();
+  
+  // Find the professional record linked to this barber user
+  const pro = pros.find(p => p.userId === u.id);
+  if (!pro) {
+    return `<div class="page"><div class="container">
+      <div class="ph"><div><h1 class="ptitle">Meus Clientes</h1></div></div>
+      <div style="text-align:center;padding:40px;color:var(--text2)">
+        <div style="font-size:3rem;margin-bottom:16px">⚠️</div>
+        <p>Seu usuário não está vinculado a um perfil de barbeiro.</p>
+        <p>Entre em contato com o administrador.</p>
+      </div>
+    </div></div>`;
+  }
+  
+  // Get all appointments for this barber
+  const barberApts = DB.apts().filter(a => a.professionalId === pro.id);
+  
+  // Get unique clients
+  const clientMap = new Map();
+  barberApts.forEach(apt => {
+    if (!clientMap.has(apt.userId)) {
+      const user = _tenantUsers.find(u => u.id === apt.userId);
+      if (user) {
+        const clientApts = barberApts.filter(a => a.userId === apt.userId);
+        const totalSpent = clientApts.reduce((sum, a) => sum + Number(a.price || 0), 0);
+        const lastVisit = clientApts.sort((a, b) => b.date.localeCompare(a.date))[0];
+        clientMap.set(apt.userId, {
+          ...user,
+          totalSpent,
+          visitCount: clientApts.length,
+          lastVisit: lastVisit?.date || ''
+        });
+      }
+    }
+  });
+  
+  const clients = Array.from(clientMap.values()).sort((a, b) => b.lastVisit.localeCompare(a.lastVisit));
+  
+  const rClientCard = (client) => {
+    const ac = avColor(client.name);
+    const tc = ac === '#C9A227' ? '#000' : '#fff';
+    return `
+    <div class="card" style="padding:16px;display:flex;align-items:center;gap:14px">
+      <div class="uavatar" style="background:${ac};color:${tc};width:48px;height:48px;font-size:1.1rem">${initials(client.name)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:1rem;margin-bottom:4px">${esc(client.name)}</div>
+        <div style="font-size:.85rem;color:var(--text2)">
+          ${client.phone ? esc(client.phone) : esc(client.email)}
+        </div>
+        <div style="font-size:.8rem;color:var(--text3);margin-top:4px">
+          ${client.visitCount} visita${client.visitCount !== 1 ? 's' : ''} · Última: ${fmtDate(client.lastVisit)}
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;color:var(--gold);font-size:1rem">${fmt(client.totalSpent)}</div>
+        <div style="font-size:.75rem;color:var(--text2)">Total gasto</div>
+      </div>
+    </div>`;
+  };
+
+  return `<div class="page"><div class="container">
+    <div class="ph"><div><h1 class="ptitle">Meus Clientes</h1><p class="psub">${clients.length} cliente${clients.length !== 1 ? 's' : ''}</p></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${clients.length === 0 ? `<div class="empty"><div class="empty-ico">👥</div><div class="empty-t">Nenhum cliente ainda</div></div>` : clients.map(c => rClientCard(c)).join('')}
+    </div>
+  </div></div>`;
+};
+
+/* =====================================================
    ADMIN SCREENS
 ===================================================== */
 const rAdmLayout = (active, content) => {
@@ -922,6 +1180,7 @@ const rAdmBarbers = () => {
     ${pros.map(p=>{
       const ac=avColor(p.name), tc=ac==='#C9A227'?'#000':'#fff';
       const bgImg = p.photo ? `background-image:url(${p.photo});background-size:cover;background-position:center;` : '';
+      const linkedUser = _tenantUsers.find(u => u.id === p.userId);
       return `
       <div class="card card-hover">
         <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:14px">
@@ -931,6 +1190,7 @@ const rAdmBarbers = () => {
               <div>
                 <div style="font-weight:700;font-family:var(--ft);font-size:1rem">${esc(p.name)}</div>
                 <div style="font-size:.75rem;color:var(--text2)">🕐 ${formatWorkingHours(p.workingHours)}</div>
+                ${linkedUser ? `<div style="font-size:.75rem;color:var(--success);margin-top:4px">✓ Vinculado a: ${esc(linkedUser.name)}</div>` : `<div style="font-size:.75rem;color:var(--warning);margin-top:4px">⚠ Sem usuário vinculado</div>`}
               </div>
               <div style="display:flex;gap:5px;flex-shrink:0">
                 <button class="btn btn-ghost btn-sm btn-icon" onclick="App.openBrbModal('${p.id}')">✎</button>
@@ -1433,9 +1693,10 @@ export const App = {
     if(!Auth.ok()&&!['login','register'].includes(hash)){window.location.hash='login';return;}
     
     if(Auth.ok()){
-      if(['login','register'].includes(hash)){window.location.hash=Auth.isAdmin()?'admin':'home';return;}
+      if(['login','register'].includes(hash)){window.location.hash=Auth.isAdmin()?'admin':Auth.isBarber()?'barber-schedule':'home';return;}
       if(Auth.isAdmin() && hash === 'home') { window.location.hash='admin'; return; }
       if(Auth.isSuperAdmin() && hash !== 'superadmin') { window.location.hash='superadmin'; return; }
+      if(Auth.isBarber() && hash === 'home') { window.location.hash='barber-schedule'; return; }
     }
 
     // Rotas que não precisam de dados do Firestore
@@ -1452,12 +1713,20 @@ export const App = {
 
     if(hasTenant && Auth.ok()){
       const isAdmin = Auth.isAdmin();
+      const isBarber = Auth.isBarber();
       const alreadyCached = DB.hasCache(isAdmin);
 
       if(!alreadyCached){
         // Primeira carga: exibe spinner e busca dados em paralelo
         app.innerHTML = '<div style="padding:100px;text-align:center;color:var(--gold)">Carregando...</div>';
         if(isAdmin){
+          await Promise.all([
+            DB.loadServices(),
+            DB.loadPros(),
+            DB.loadApts()
+          ]);
+          _tenantUsers = await DB.loadTenantUsers();
+        } else if(isBarber){
           await Promise.all([
             DB.loadServices(),
             DB.loadPros(),
@@ -1479,6 +1748,9 @@ export const App = {
     if(hash==='home') content=rHome();
     else if(hash==='booking') content=rBooking();
     else if(hash==='appointments') content=rAppointments();
+    else if(hash==='barber-schedule') content=rBarberSchedule();
+    else if(hash==='barber-earnings') content=rBarberEarnings();
+    else if(hash==='barber-clients') content=rBarberClients();
     else if(hash==='admin') content=rAdmDash();
     else if(hash==='admin-services') content=rAdmServices();
     else if(hash==='admin-barbers') content=rAdmBarbers();
@@ -1495,6 +1767,11 @@ export const App = {
     if(hash==='admin-pix'){
       const pf=document.getElementById('pixFrm');
       if(pf) pf.onsubmit = (e) => this.savePix(e);
+    }
+
+    // Draw barber earnings chart
+    if(hash==='barber-earnings'){
+      this._drawBarberEarningsChart();
     }
   },
 
@@ -1514,6 +1791,9 @@ export const App = {
     if(hash==='home') content=rHome();
     else if(hash==='booking') content=rBooking();
     else if(hash==='appointments') content=rAppointments();
+    else if(hash==='barber-schedule') content=rBarberSchedule();
+    else if(hash==='barber-earnings') content=rBarberEarnings();
+    else if(hash==='barber-clients') content=rBarberClients();
     else if(hash==='admin') content=rAdmDash();
     else if(hash==='admin-services') content=rAdmServices();
     else if(hash==='admin-barbers') content=rAdmBarbers();
@@ -1530,6 +1810,11 @@ export const App = {
       const pf=document.getElementById('pixFrm');
       if(pf) pf.onsubmit = (e) => this.savePix(e);
     }
+
+    // Draw barber earnings chart
+    if(hash==='barber-earnings'){
+      this._drawBarberEarningsChart();
+    }
   },
 
   _bindAuth(){
@@ -1540,12 +1825,12 @@ export const App = {
       const fd=new FormData(e.target), err=document.getElementById('loginErr');
       try{
         const u = await Auth.login(fd.get('email'), fd.get('pw'));
-        if(u.role === 'customer' || u.role === 'admin') {
+        if(u.role === 'customer' || u.role === 'admin' || u.role === 'barber') {
            if(u.barbeariaId !== DB.getBarbeariaId() && DB.getBarbeariaId()) {
              await Auth.logout(); throw new Error('Conta não pertence a esta barbearia.');
            }
         }
-        T.ok(`Bem-vindo!`); Nav.go(u.role==='admin'?'admin':u.role==='superadmin'?'superadmin':'home');
+        T.ok(`Bem-vindo!`); Nav.go(u.role==='admin'?'admin':u.role==='superadmin'?'superadmin':u.role==='barber'?'barber-schedule':'home');
       }
       catch(ex){err.textContent=ex.message;err.style.display='block'; b.disabled=false; b.textContent='Entrar';}
     };
@@ -2050,6 +2335,13 @@ export const App = {
 
           <div class="fg"><label class="flabel">Nome *</label><input type="text" name="name" class="fc" value="${esc(p?.name||'')}" required></div>
           <div class="fg"><label class="flabel">Especialidades (separadas por vírgula)</label><input type="text" name="specs" class="fc" value="${esc((p?.specialties||[]).join(', '))}"></div>
+          <div class="fg"><label class="flabel">Vincular Usuário (para acesso do barbeiro)</label>
+            <select name="userId" class="fc">
+              <option value="">-- Selecione um usuário --</option>
+              ${_tenantUsers.filter(u => u.role === 'customer' || u.role === 'barber').map(u => `<option value="${u.id}" ${p?.userId === u.id ? 'selected' : ''}>${esc(u.name)} (${esc(u.email)})</option>`).join('')}
+            </select>
+            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">Selecione o usuário que terá acesso como barbeiro. O usuário deve ter a role "barber".</div>
+          </div>
           
           <!-- Turnos de Trabalho -->
           <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:8px">🕐 Turno 1 (Manhã)</div>
@@ -2188,6 +2480,8 @@ export const App = {
         end2: fd.get('end2') || ''
       };
 
+      const selectedUserId = fd.get('userId');
+      
       const data={
         name: fd.get('name'),
         specialties: fd.get('specs').split(',').map(s=>s.trim()).filter(Boolean),
@@ -2204,7 +2498,21 @@ export const App = {
         window._currentCameraStream = null;
       }
       
-      await DB.savePro(data); App.closeModal(); T.ok(p?'Atualizado!':'Cadastrado!'); this._renderInPlace();
+      await DB.savePro(data);
+      
+      // Update user role to barber if a user is selected
+      if(selectedUserId) {
+        data.userId = selectedUserId;
+        await DB.savePro(data);
+        await DB.updateUserProfile(selectedUserId, { role: 'barber' });
+      } else if(p?.userId) {
+        // If user was previously linked but now unlinked, reset role to customer
+        await DB.updateUserProfile(p.userId, { role: 'customer' });
+        data.userId = '';
+        await DB.savePro(data);
+      }
+      
+      App.closeModal(); T.ok(p?'Atualizado!':'Cadastrado!'); this._renderInPlace();
     };
   },
 
@@ -2447,6 +2755,75 @@ export const App = {
         }
       }
     });
+  },
+
+  _drawBarberEarningsChart(){
+    const u = Auth.cur;
+    const pros = DB.pros();
+    const pro = pros.find(p => p.userId === u.id);
+    if(!pro) return;
+
+    const td = todayStr();
+    const today = new Date();
+    const chartLabels = [];
+    const chartData = [];
+    
+    for(let i = 6; i >= 0; i--){
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dStr = d.toISOString().split('T')[0];
+      const dayName = d.toLocaleDateString('pt-BR', { weekday: 'short' });
+      chartLabels.push(dayName);
+      const barberApts = DB.apts().filter(a => a.professionalId === pro.id && a.status === 'concluído' && a.date === dStr);
+      const dayTotal = barberApts.reduce((sum, a) => sum + Number(a.price || 0), 0);
+      chartData.push(dayTotal);
+    }
+
+    const ctx = document.getElementById('barberEarningsChart');
+    if(!ctx) return;
+    if(window._barberChart) window._barberChart.destroy();
+    window._barberChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: chartLabels,
+        datasets: [{
+          label: 'Ganhos (R$)',
+          data: chartData,
+          backgroundColor: '#C9A227',
+          borderRadius: 6,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#252525' }, ticks: { color: '#a0a0a0', font: { size: 10 } } },
+          x: { grid: { display: false }, ticks: { color: '#a0a0a0', font: { size: 10 } } }
+        }
+      }
+    });
+  },
+
+  tabBarberApt(tab){
+    const tU = document.getElementById('tU');
+    const tH = document.getElementById('tH');
+    const tcU = document.getElementById('tcU');
+    const tcH = document.getElementById('tcH');
+    if(!tU || !tH || !tcU || !tcH) return;
+    
+    if(tab === 'u'){
+      tU.classList.add('active');
+      tH.classList.remove('active');
+      tcU.style.display = 'flex';
+      tcH.style.display = 'none';
+    } else {
+      tU.classList.remove('active');
+      tH.classList.add('active');
+      tcU.style.display = 'none';
+      tcH.style.display = 'flex';
+    }
   },
   
   toggleUserDD(){

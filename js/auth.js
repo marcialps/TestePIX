@@ -112,6 +112,9 @@ export const Auth = {
   isSuperAdmin() {
     return this.cur?.role === 'superadmin';
   },
+  isBarber() {
+    return this.cur?.role === 'barber';
+  },
   ok() {
     return !!this.cur;
   }
