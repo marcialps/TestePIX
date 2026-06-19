@@ -1708,7 +1708,7 @@ const openTenantModal = () => {
       if(ex) throw new Error('Este slug já está em uso.');
 
       T.warn('Você será logado como o novo Admin.');
-      await Auth.register({name: 'Dono ' + name, email, pw, role: 'admin', barbeariaId: slug});
+      await Auth.register({name: 'Dono ' + name, emailOrPhone: email, pw, role: 'admin', barbeariaId: slug});
       await DB.createBarbearia(slug, name, Auth.cur.id);
       
       App.closeModal(); T.ok('Tenant criado com sucesso!'); window.location.href = `?b=${slug}#admin`;
