@@ -1392,6 +1392,22 @@ const rAdmSettings = () => {
         <input type="email" name="newEmail" class="fc" placeholder="Digite seu novo e-mail">
         <div style="font-size:.75rem;color:var(--text3);margin-top:5px">Um e-mail de verificação será enviado para o novo endereço. O e-mail só será alterado após você clicar no link de confirmação.</div>
       </div>
+      <hr style="border-color:var(--border);margin:20px 0">
+      <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border">
+        🔐 Alterar Senha
+      </div>
+      <div class="fg">
+        <label class="flabel">Senha Atual</label>
+        <input type="password" name="currentPassword" class="fc" placeholder="Digite sua senha atual">
+      </div>
+      <div class="fg">
+        <label class="flabel">Nova Senha</label>
+        <input type="password" name="newPassword" class="fc" placeholder="Digite sua nova senha (mínimo 6 caracteres)" minlength="6">
+      </div>
+      <div class="fg">
+        <label class="flabel">Confirmar Nova Senha</label>
+        <input type="password" name="confirmPassword" class="fc" placeholder="Confirme sua nova senha">
+      </div>
       <div id="settingsErr" class="ferr" style="display:none;margin-bottom:12px"></div>
       <button type="submit" class="btn btn-primary w-full btn-lg" id="btnSaveSettings">✓ Salvar Alterações</button>
     </form>
@@ -2763,6 +2779,9 @@ export const App = {
     const fd=new FormData(e.target);
     const name=fd.get('name').trim();
     const newEmail=fd.get('newEmail').trim();
+    const currentPassword=fd.get('currentPassword');
+    const newPassword=fd.get('newPassword');
+    const confirmPassword=fd.get('confirmPassword');
     const btn=document.getElementById('btnSaveSettings');
     const errEl=document.getElementById('settingsErr');
     errEl.style.display='none';
@@ -2777,6 +2796,22 @@ export const App = {
       if(newEmail && newEmail !== Auth.cur.email){
         await Auth.updateCurrentUserEmail(newEmail);
         T.ok('✓ Um e-mail de verificação foi enviado para ' + newEmail + '. Clique no link para confirmar a alteração.');
+        this._renderInPlace();
+        return;
+      }
+      // Atualiza senha se fornecida
+      if(currentPassword || newPassword || confirmPassword){
+        if(!currentPassword || !newPassword || !confirmPassword){
+          throw new Error('Para alterar a senha, preencha todos os campos de senha.');
+        }
+        if(newPassword !== confirmPassword){
+          throw new Error('A nova senha e a confirmação não coincidem.');
+        }
+        if(newPassword.length < 6){
+          throw new Error('A nova senha deve ter pelo menos 6 caracteres.');
+        }
+        await Auth.updateCurrentUserPassword(currentPassword, newPassword);
+        T.ok('✓ Senha atualizada com sucesso!');
         this._renderInPlace();
         return;
       }

@@ -1,4 +1,4 @@
-import { auth, db, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, verifyBeforeUpdateEmail } from './firebase-config.js';
+import { auth, db, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, verifyBeforeUpdateEmail, updatePassword } from './firebase-config.js';
 import { DB } from './db.js';
 
 export const Auth = {
@@ -146,6 +146,30 @@ export const Auth = {
       if (e.code === 'auth/email-already-in-use') throw new Error('Este e-mail já está em uso por outra conta.');
       if (e.code === 'auth/invalid-email') throw new Error('E-mail inválido.');
       throw new Error('Erro ao atualizar e-mail: ' + e.message);
+    }
+  },
+
+  async updateCurrentUserPassword(currentPassword, newPassword) {
+    try {
+      if (!this.cur) throw new Error('Usuário não autenticado.');
+      if (!auth.currentUser) throw new Error('Sessão Firebase inválida.');
+      if (!currentPassword || !newPassword) throw new Error('Senha atual e nova senha são obrigatórias.');
+      if (newPassword.length < 6) throw new Error('A nova senha deve ter pelo menos 6 caracteres.');
+
+      // Reautentica o usuário com a senha atual
+      const credential = signInWithEmailAndPassword(auth, this.cur.email, currentPassword);
+      const userCredential = await credential;
+
+      // Atualiza a senha
+      await updatePassword(userCredential.user, newPassword);
+
+      return this.cur;
+    } catch (e) {
+      console.error(e);
+      if (e.code === 'auth/wrong-password') throw new Error('Senha atual incorreta.');
+      if (e.code === 'auth/weak-password') throw new Error('A nova senha é muito fraca. Use pelo menos 6 caracteres.');
+      if (e.code === 'auth/requires-recent-login') throw new Error('Por segurança, você precisa fazer login novamente.');
+      throw new Error('Erro ao atualizar senha: ' + e.message);
     }
   }
 };
