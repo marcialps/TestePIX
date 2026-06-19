@@ -17,8 +17,12 @@ export const Auth = {
           // Firebase Auth é a fonte de verdade para o email
           if (user.email && userData.email !== user.email) {
             console.log('[Auth] Syncing email from Firebase Auth to Firestore:', user.email);
-            await updateDoc(docRef, { email: user.email });
-            userData.email = user.email;
+            try {
+              await updateDoc(docRef, { email: user.email });
+              userData.email = user.email;
+            } catch (err) {
+              console.error('[Auth] Error syncing email to Firestore:', err);
+            }
           }
           this.cur = { id: user.uid, ...userData };
         } else {
@@ -41,8 +45,12 @@ export const Auth = {
         // Sync Firestore email with Firebase Auth email if they differ
         if (cred.user.email && userData.email !== cred.user.email) {
           console.log('[Auth.login] Syncing email from Firebase Auth to Firestore:', cred.user.email);
-          await updateDoc(doc(db, 'users', cred.user.uid), { email: cred.user.email });
-          userData.email = cred.user.email;
+          try {
+            await updateDoc(doc(db, 'users', cred.user.uid), { email: cred.user.email });
+            userData.email = cred.user.email;
+          } catch (err) {
+            console.error('[Auth.login] Error syncing email to Firestore:', err);
+          }
         }
         this.cur = { id: cred.user.uid, ...userData };
         return this.cur;
