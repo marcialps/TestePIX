@@ -1,4 +1,4 @@
-import { auth, db, doc, getDoc, setDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup } from './firebase-config.js';
+import { auth, db, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup } from './firebase-config.js';
 import { DB } from './db.js';
 
 export const Auth = {
@@ -12,7 +12,13 @@ export const Auth = {
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
-          this.cur = { id: user.uid, ...docSnap.data() };
+          const userData = docSnap.data();
+          // Se o email no Firebase Auth for diferente do Firestore, atualiza o Firestore
+          if (user.email && userData.email !== user.email) {
+            await updateDoc(docRef, { email: user.email });
+            userData.email = user.email;
+          }
+          this.cur = { id: user.uid, ...userData };
         } else {
           // Fallback, caso algo dê errado no registro
           this.cur = { id: user.uid, name: user.displayName, email: user.email, role: 'customer' };
