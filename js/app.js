@@ -925,6 +925,7 @@ const rAdmLayout = (active, content) => {
     {id:'admin-reports',i:'📊',l:'Relatórios'},
     {id:'admin-pix',i:'⚡',l:'Configurações PIX'},
     {id:'admin-reminders',i:'💬',l:'Lembretes Whats'},
+    {id:'admin-settings',i:'⚙️',l:'Minha Conta'},
   ];
   const showTenantEditor = Auth.isAdmin() && DB.getBarbeariaId();
   return `
@@ -1370,6 +1371,34 @@ const rAdmPix = () => {
 };
 
 /* =====================================================
+   ADMIN SETTINGS (Minha Conta)
+===================================================== */
+const rAdmSettings = () => {
+  const u = Auth.cur;
+  return rAdmLayout('admin-settings',`
+  <div class="ph"><div><h1 class="ptitle">⚙️ Minha Conta</h1><p class="psub">Atualize suas informações de acesso</p></div></div>
+  <div class="card" style="max-width:560px">
+    <form id="settingsFrm">
+      <div class="fg">
+        <label class="flabel">Nome</label>
+        <input type="text" name="name" class="fc" value="${esc(u?.name||'')}" required>
+      </div>
+      <div class="fg">
+        <label class="flabel">E-mail atual</label>
+        <input type="email" class="fc" value="${esc(u?.email||'')}" readonly style="background:var(--bg3);cursor:not-allowed">
+      </div>
+      <div class="fg">
+        <label class="flabel">Novo E-mail</label>
+        <input type="email" name="newEmail" class="fc" placeholder="Digite seu novo e-mail">
+        <div style="font-size:.75rem;color:var(--text3);margin-top:5px">Ao alterar o e-mail, você precisará fazer login novamente.</div>
+      </div>
+      <div id="settingsErr" class="ferr" style="display:none;margin-bottom:12px"></div>
+      <button type="submit" class="btn btn-primary w-full btn-lg" id="btnSaveSettings">✓ Salvar Alterações</button>
+    </form>
+  </div>`);
+};
+
+/* =====================================================
    LEMBRETES WHATSAPP
 ===================================================== */
 const rAdmReminders = () => {
@@ -1759,6 +1788,7 @@ export const App = {
     else if(hash==='admin-reports') content=rAdmReports();
     else if(hash==='admin-pix') content=rAdmPix();
     else if(hash==='admin-reminders') content=rAdmReminders();
+    else if(hash==='admin-settings') content=rAdmSettings();
     else content = rHome();
 
     this._draw(app, rNavbar() + `<div style="flex:1">${content}</div>`);
@@ -1767,6 +1797,12 @@ export const App = {
     if(hash==='admin-pix'){
       const pf=document.getElementById('pixFrm');
       if(pf) pf.onsubmit = (e) => this.savePix(e);
+    }
+
+    // Bind Settings form se estiver na tela admin-settings
+    if(hash==='admin-settings'){
+      const sf=document.getElementById('settingsFrm');
+      if(sf) sf.onsubmit = (e) => this.saveSettings(e);
     }
 
     // Draw barber earnings chart
@@ -1802,6 +1838,7 @@ export const App = {
     else if(hash==='admin-reports') content=rAdmReports();
     else if(hash==='admin-pix') content=rAdmPix();
     else if(hash==='admin-reminders') content=rAdmReminders();
+    else if(hash==='admin-settings') content=rAdmSettings();
     else content=rHome();
 
     this._draw(app, rNavbar() + `<div style="flex:1">${content}</div>`);
@@ -1809,6 +1846,11 @@ export const App = {
     if(hash==='admin-pix'){
       const pf=document.getElementById('pixFrm');
       if(pf) pf.onsubmit = (e) => this.savePix(e);
+    }
+
+    if(hash==='admin-settings'){
+      const sf=document.getElementById('settingsFrm');
+      if(sf) sf.onsubmit = (e) => this.saveSettings(e);
     }
 
     // Draw barber earnings chart
@@ -1985,8 +2027,8 @@ export const App = {
           </div>
           <div class="fg">
             <label class="flabel">E-mail do Dono</label>
-            <input type="email" name="ownerEmail" class="fc" value="${esc(owner?.email||'')}" placeholder="email@exemplo.com">
-            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">⚠️ Alterar o e-mail aqui atualiza apenas o cadastro. Use o reset de senha para enviar link de acesso.</div>
+            <input type="email" name="ownerEmail" class="fc" value="${esc(owner?.email||'')}" placeholder="email@exemplo.com" readonly style="background:var(--bg3);cursor:not-allowed">
+            <div style="font-size:.72rem;color:var(--warning);margin-top:4px">⚠️ O e-mail não pode ser alterado aqui. O dono deve atualizar seu próprio e-mail acessando o painel admin e indo em Configurações.</div>
           </div>
 
           <div id="editTntErr" class="ferr" style="display:none;margin-bottom:12px"></div>
@@ -2045,11 +2087,10 @@ export const App = {
         if (Object.keys(tntUpd).length > 0) {
           await DB.updateBarbeariaData(slug, tntUpd);
         }
-        // Atualiza dados do dono no Firestore
+        // Atualiza dados do dono no Firestore (apenas nome, email não pode ser alterado aqui)
         if (tenant.donoId) {
           const upd = {};
           if (ownerName  && ownerName  !== owner?.name)  upd.name  = ownerName;
-          if (ownerEmail && ownerEmail !== owner?.email) upd.email = ownerEmail;
           if (Object.keys(upd).length > 0) await DB.updateUserProfile(tenant.donoId, upd);
         }
         T.ok('✓ Informações atualizadas com sucesso!');
@@ -2715,6 +2756,40 @@ export const App = {
       T.ok(`⚡ PIX configurado! Chave salva: ${chave}`);
       this._renderInPlace();
     }catch(err){ T.err('Erro ao salvar: '+err.message); btn.disabled=false; btn.textContent='✓ Salvar Configurações PIX'; }
+  },
+
+  async saveSettings(e){
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const name=fd.get('name').trim();
+    const newEmail=fd.get('newEmail').trim();
+    const btn=document.getElementById('btnSaveSettings');
+    const errEl=document.getElementById('settingsErr');
+    errEl.style.display='none';
+    btn.disabled=true; btn.textContent='Salvando...';
+    try{
+      // Atualiza nome no Firestore
+      if(name && name !== Auth.cur.name){
+        await DB.updateUserProfile(Auth.cur.id, {name});
+        Auth.cur.name = name;
+      }
+      // Atualiza email se fornecido
+      if(newEmail && newEmail !== Auth.cur.email){
+        await Auth.updateCurrentUserEmail(newEmail);
+        T.ok('✓ E-mail atualizado! Você precisará fazer login novamente.');
+        setTimeout(() => {
+          Auth.logout();
+          Nav.go('login');
+        }, 2000);
+        return;
+      }
+      T.ok('✓ Informações atualizadas!');
+      this._renderInPlace();
+    }catch(err){
+      errEl.textContent='Erro: '+err.message;
+      errEl.style.display='block';
+      btn.disabled=false; btn.textContent='✓ Salvar Alterações';
+    }
   },
 
   // --- Relatórios ---

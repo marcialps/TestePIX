@@ -1,4 +1,4 @@
-import { auth, db, doc, getDoc, setDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup } from './firebase-config.js';
+import { auth, db, doc, getDoc, setDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, updateEmail } from './firebase-config.js';
 import { DB } from './db.js';
 
 export const Auth = {
@@ -117,5 +117,29 @@ export const Auth = {
   },
   ok() {
     return !!this.cur;
+  },
+
+  async updateCurrentUserEmail(newEmail) {
+    try {
+      if (!this.cur) throw new Error('Usuário não autenticado.');
+      if (!auth.currentUser) throw new Error('Sessão Firebase inválida.');
+
+      // Atualiza email no Firebase Authentication
+      await updateEmail(auth.currentUser, newEmail);
+
+      // Atualiza email no Firestore
+      await updateDoc(doc(db, 'users', this.cur.id), { email: newEmail });
+
+      // Atualiza cache local
+      this.cur.email = newEmail;
+
+      return this.cur;
+    } catch (e) {
+      console.error(e);
+      if (e.code === 'auth/requires-recent-login') throw new Error('Por segurança, você precisa fazer login novamente antes de alterar seu e-mail.');
+      if (e.code === 'auth/email-already-in-use') throw new Error('Este e-mail já está em uso por outra conta.');
+      if (e.code === 'auth/invalid-email') throw new Error('E-mail inválido.');
+      throw new Error('Erro ao atualizar e-mail: ' + e.message);
+    }
   }
 };
