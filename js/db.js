@@ -1,4 +1,4 @@
-import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail } from './firebase-config.js';
+import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail, updateEmail, updatePassword, signInWithEmailAndPassword } from './firebase-config.js';
 
 let currentBarbeariaId = null;
 
@@ -232,5 +232,45 @@ export const DB = {
 
   async sendOwnerPasswordReset(email) {
     await sendPasswordResetEmail(auth, email);
+  },
+
+  async updateOwnerEmail(uid, newEmail, currentPassword) {
+    // Atualiza o email no Firebase Auth e no Firestore
+    // Requer a senha atual do dono para reautenticação
+    try {
+      // Busca o email atual do dono
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      const currentEmail = userDoc.data().email;
+      
+      // Salva o usuário atual (superadmin) para restaurar depois
+      const currentUser = auth.currentUser;
+      
+      // Faz login temporário como o dono
+      const cred = await signInWithEmailAndPassword(auth, currentEmail, currentPassword);
+      
+      // Atualiza o email no Firebase Auth
+      await updateEmail(cred.user, newEmail);
+      
+      // Define a senha padrão "123456"
+      await updatePassword(cred.user, '123456');
+      
+      // Faz logout do dono
+      await signOut(auth);
+      
+      // Restaura a sessão do superadmin se existia
+      if (currentUser) {
+        // Nota: Não podemos restaurar automaticamente a sessão do superadmin
+        // porque precisamos das credenciais. O usuário precisará fazer login novamente.
+        // Isso é uma limitação do Firebase Auth do lado do cliente.
+      }
+      
+      // Atualiza o documento no Firestore
+      await updateDoc(doc(db, 'users', uid), { email: newEmail });
+      
+      return true;
+    } catch (e) {
+      console.error('Erro ao atualizar email do dono:', e);
+      throw e;
+    }
   }
 };
