@@ -3,39 +3,24 @@ import { DB } from './db.js';
 
 export const Auth = {
   cur: null,
-  _initialized: false,
-
+  
   async init(callback) {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Só busca o Firestore se cur ainda não estiver populado
-        // (evita sobrescrever dados que acabaram de ser setados pelo login/register)
-        if (!this.cur || this.cur.id !== user.uid) {
-          const docRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(docRef);
-
-          if (docSnap.exists()) {
-            this.cur = { id: user.uid, ...docSnap.data() };
-          } else {
-            this.cur = { id: user.uid, name: user.displayName, email: user.email, role: 'customer' };
-          }
+        // Busca documento do usuário no Firestore
+        const docRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          this.cur = { id: user.uid, ...docSnap.data() };
+        } else {
+          // Fallback, caso algo dê errado no registro
+          this.cur = { id: user.uid, name: user.displayName, email: user.email, role: 'customer' };
         }
-        this._initialized = true;
-        callback(this.cur);
       } else {
-        // user = null: pode ser logout real ou evento transitório do Firebase.
-        // Só processa se o logout foi iniciado explicitamente (via Auth.logout)
-        // ou se ainda não inicializou (carregamento inicial sem sessão).
-        if (!this._initialized || this._explicitLogout) {
-          this._explicitLogout = false;
-          this.cur = null;
-          this._initialized = true;
-          callback(this.cur);
-        }
-        // Se já estava inicializado e não foi logout explícito, ignora o evento null.
-        // Isso evita o bug onde o Firebase emite user=null brevemente após
-        // certas operações de conta, causando redirect indevido para login.
+        this.cur = null;
       }
+      callback(this.cur);
     });
   },
 
@@ -59,10 +44,10 @@ export const Auth = {
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       const user = cred.user;
-
+      
       const docRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(docRef);
-
+      
       if (docSnap.exists()) {
         this.cur = { id: user.uid, ...docSnap.data() };
         return this.cur;
@@ -91,10 +76,10 @@ export const Auth = {
     try {
       // Usa tenant da URL para clientes
       const tId = barbeariaId || DB.getBarbeariaId();
-
+      
       const cred = await createUserWithEmailAndPassword(auth, email, pw);
       await updateProfile(cred.user, { displayName: name });
-
+      
       const userDoc = {
         name: name.trim(),
         email: email.trim(),
@@ -104,7 +89,7 @@ export const Auth = {
         points: 0,
         createdAt: new Date().toISOString().split('T')[0]
       };
-
+      
       await setDoc(doc(db, 'users', cred.user.uid), userDoc);
       this.cur = { id: cred.user.uid, ...userDoc };
       return this.cur;
@@ -117,7 +102,6 @@ export const Auth = {
   },
 
   async logout() {
-    this._explicitLogout = true;
     await signOut(auth);
     this.cur = null;
   },

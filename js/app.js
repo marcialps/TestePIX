@@ -1986,12 +1986,7 @@ export const App = {
           <div class="fg">
             <label class="flabel">E-mail do Dono</label>
             <input type="email" name="ownerEmail" class="fc" value="${esc(owner?.email||'')}" placeholder="email@exemplo.com">
-            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">⚠️ Ao alterar o e-mail, a senha será redefinida para "123456". Você precisará fazer login novamente após a alteração.</div>
-          </div>
-          <div class="fg">
-            <label class="flabel">Senha Atual do Dono</label>
-            <input type="password" name="ownerPassword" class="fc" placeholder="Senha atual do dono">
-            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">🔒 Necessária para alterar o e-mail por segurança.</div>
+            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">⚠️ Alterar o e-mail aqui atualiza apenas o cadastro. Use o reset de senha para enviar link de acesso.</div>
           </div>
 
           <div id="editTntErr" class="ferr" style="display:none;margin-bottom:12px"></div>
@@ -2025,7 +2020,6 @@ export const App = {
       const barbPhone  = fd.get('barbPhone').trim();
       const ownerName  = fd.get('ownerName').trim();
       const ownerEmail = fd.get('ownerEmail').trim();
-      const ownerPassword = fd.get('ownerPassword').trim();
       const btn = document.getElementById('btnSaveEditTnt');
       const errEl = document.getElementById('editTntErr');
       errEl.style.display = 'none';
@@ -2051,35 +2045,16 @@ export const App = {
         if (Object.keys(tntUpd).length > 0) {
           await DB.updateBarbeariaData(slug, tntUpd);
         }
-        // Atualiza dados do dono no Firestore e Firebase Auth
+        // Atualiza dados do dono no Firestore
         if (tenant.donoId) {
           const upd = {};
           if (ownerName  && ownerName  !== owner?.name)  upd.name  = ownerName;
-          
-          // Se o email foi alterado, usa a função especial que atualiza Firebase Auth e define senha padrão
-          if (ownerEmail && ownerEmail !== owner?.email) {
-            if (!ownerPassword) {
-              errEl.textContent = 'A senha atual do dono é necessária para alterar o e-mail.';
-              errEl.style.display = 'block';
-              btn.disabled = false; btn.textContent = '✓ Salvar Alterações';
-              return;
-            }
-            await DB.updateOwnerEmail(tenant.donoId, ownerEmail, ownerPassword);
-            upd.email = ownerEmail;
-          }
-          
+          if (ownerEmail && ownerEmail !== owner?.email) upd.email = ownerEmail;
           if (Object.keys(upd).length > 0) await DB.updateUserProfile(tenant.donoId, upd);
         }
-        T.ok('✓ Informações atualizadas com sucesso! Se o e-mail foi alterado, a senha foi redefinida para "123456". Você será redirecionado para o login.');
+        T.ok('✓ Informações atualizadas com sucesso!');
         App.closeModal();
-        if (ownerEmail && ownerEmail !== owner?.email) {
-          // Se o email foi alterado, redireciona para o login após 2 segundos
-          setTimeout(() => {
-            window.location.href = window.location.href.split('#')[0] + '#login';
-          }, 2000);
-        } else {
-          App._loadTenants();
-        }
+        App._loadTenants();
       } catch(err) {
         errEl.textContent = 'Erro: ' + err.message;
         errEl.style.display = 'block';
@@ -2945,10 +2920,7 @@ export const App = {
     }
 
     Auth.init((user) => { this.render(); });
-    window.addEventListener('hashchange',()=>{
-      // Só renderiza após o Firebase Auth ter resolvido a sessão
-      if(Auth._initialized) this.render();
-    });
+    window.addEventListener('hashchange',()=>this.render());
   }
 };
 
