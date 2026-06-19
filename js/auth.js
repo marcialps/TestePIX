@@ -1,4 +1,4 @@
-import { auth, db, doc, getDoc, setDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, verifyBeforeUpdateEmail } from './firebase-config.js';
+import { auth, db, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, verifyBeforeUpdateEmail } from './firebase-config.js';
 import { DB } from './db.js';
 
 export const Auth = {
