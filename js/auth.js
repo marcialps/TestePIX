@@ -14,7 +14,9 @@ export const Auth = {
         if (docSnap.exists()) {
           const userData = docSnap.data();
           // Se o email no Firebase Auth for diferente do Firestore, atualiza o Firestore
+          // Firebase Auth é a fonte de verdade para o email
           if (user.email && userData.email !== user.email) {
+            console.log('[Auth] Syncing email from Firebase Auth to Firestore:', user.email);
             await updateDoc(docRef, { email: user.email });
             userData.email = user.email;
           }
@@ -35,7 +37,14 @@ export const Auth = {
       const cred = await signInWithEmailAndPassword(auth, email, pw);
       const docSnap = await getDoc(doc(db, 'users', cred.user.uid));
       if (docSnap.exists()) {
-        this.cur = { id: cred.user.uid, ...docSnap.data() };
+        const userData = docSnap.data();
+        // Sync Firestore email with Firebase Auth email if they differ
+        if (cred.user.email && userData.email !== cred.user.email) {
+          console.log('[Auth.login] Syncing email from Firebase Auth to Firestore:', cred.user.email);
+          await updateDoc(doc(db, 'users', cred.user.uid), { email: cred.user.email });
+          userData.email = cred.user.email;
+        }
+        this.cur = { id: cred.user.uid, ...userData };
         return this.cur;
       }
       return null;
