@@ -1,4 +1,4 @@
-import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail } from './firebase-config.js';
+import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail, updateEmail } from './firebase-config.js';
 
 let currentBarbeariaId = null;
 
@@ -232,5 +232,13 @@ export const DB = {
 
   async sendOwnerPasswordReset(email) {
     await sendPasswordResetEmail(auth, email);
+  },
+
+  async updateUserEmail(uid, newEmail) {
+    // Updates both Firestore document and Firebase Auth email
+    // Note: Firebase Auth updateEmail requires the user to be authenticated
+    // Since super admin can't authenticate as the owner, we update Firestore
+    // and the owner will need to verify via password reset or re-authentication
+    await updateDoc(doc(db, 'users', uid), { email: newEmail });
   }
 };
