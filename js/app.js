@@ -1986,7 +1986,12 @@ export const App = {
           <div class="fg">
             <label class="flabel">E-mail do Dono</label>
             <input type="email" name="ownerEmail" class="fc" value="${esc(owner?.email||'')}" placeholder="email@exemplo.com">
-            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">⚠️ Alterar o e-mail aqui atualiza apenas o cadastro. Use o reset de senha para enviar link de acesso.</div>
+            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">⚠️ Ao alterar o e-mail, é necessário informar uma nova senha.</div>
+          </div>
+          <div class="fg">
+            <label class="flabel">Nova Senha do Dono (mínimo 6 caracteres)</label>
+            <input type="password" name="ownerNewPassword" class="fc" placeholder="Deixe em branco para não alterar" minlength="6">
+            <div style="font-size:.72rem;color:var(--text3);margin-top:4px">Preencha para definir uma nova senha. A senha será aplicada diretamente para acesso.</div>
           </div>
 
           <div id="editTntErr" class="ferr" style="display:none;margin-bottom:12px"></div>
@@ -2020,10 +2025,29 @@ export const App = {
       const barbPhone  = fd.get('barbPhone').trim();
       const ownerName  = fd.get('ownerName').trim();
       const ownerEmail = fd.get('ownerEmail').trim();
+      const ownerNewPassword = fd.get('ownerNewPassword').trim();
       const btn = document.getElementById('btnSaveEditTnt');
       const errEl = document.getElementById('editTntErr');
       errEl.style.display = 'none';
       if (!barbName) { errEl.textContent = 'O nome da barbearia é obrigatório.'; errEl.style.display = 'block'; return; }
+      
+      const emailChanged = ownerEmail && ownerEmail !== owner?.email;
+      const passwordChanged = ownerNewPassword && ownerNewPassword.length >= 6;
+      
+      // Validação: se email mudou, senha nova é obrigatória
+      if (emailChanged && !passwordChanged) {
+        errEl.textContent = 'Ao alterar o e-mail, é necessário informar uma nova senha.';
+        errEl.style.display = 'block';
+        return;
+      }
+      
+      // Validação: se senha nova informada, mínimo 6 caracteres
+      if (ownerNewPassword && ownerNewPassword.length < 6) {
+        errEl.textContent = 'A nova senha deve ter pelo menos 6 caracteres.';
+        errEl.style.display = 'block';
+        return;
+      }
+      
       btn.disabled = true; btn.textContent = 'Salvando...';
       try {
         // Atualiza dados da barbearia se mudaram
@@ -2045,14 +2069,47 @@ export const App = {
         if (Object.keys(tntUpd).length > 0) {
           await DB.updateBarbeariaData(slug, tntUpd);
         }
+        
         // Atualiza dados do dono no Firestore
         if (tenant.donoId) {
           const upd = {};
           if (ownerName  && ownerName  !== owner?.name)  upd.name  = ownerName;
-          if (ownerEmail && ownerEmail !== owner?.email) upd.email = ownerEmail;
-          if (Object.keys(upd).length > 0) await DB.updateUserProfile(tenant.donoId, upd);
+          
+          if (emailChanged || passwordChanged) {
+            const targetEmail = emailChanged ? ownerEmail : owner?.email;
+            const newPassword = ownerNewPassword;
+            
+            if (emailChanged) {
+              // Quando o email muda, podemos criar um novo usuário Firebase Auth
+              try {
+                await DB.createOwnerAuthUser(targetEmail, newPassword);
+                
+                // Atualiza o Firestore com o novo email
+                upd.email = ownerEmail;
+                await DB.updateUserProfile(tenant.donoId, upd);
+                
+                T.ok('✓ E-mail e senha atualizados com sucesso! O dono agora pode fazer login com o novo e-mail e senha.');
+              } catch (authError) {
+                // Se falhar a criação do usuário no Firebase Auth, atualiza apenas o Firestore e envia reset
+                console.warn('Falha ao criar usuário no Firebase Auth:', authError.message);
+                upd.email = ownerEmail;
+                await DB.updateUserProfile(tenant.donoId, upd);
+                T.warn('⚠️ E-mail atualizado no Firestore, mas houve um erro ao criar o usuário no Firebase Auth. Um link de redefinição de senha foi enviado.');
+                await DB.sendOwnerPasswordReset(targetEmail);
+              }
+            } else {
+              // Quando apenas a senha muda (mesmo email), enviamos email de reset
+              // Sem Firebase Admin SDK, não é possível alterar senha de outro usuário diretamente
+              await DB.sendOwnerPasswordReset(targetEmail);
+              T.ok('✓ Um link de redefinição de senha foi enviado para o e-mail do dono. O dono deve usar este link para definir a nova senha.');
+            }
+          } else {
+            // Se não mudou email nem senha, apenas atualiza outros campos
+            if (ownerEmail && ownerEmail !== owner?.email) upd.email = ownerEmail;
+            if (Object.keys(upd).length > 0) await DB.updateUserProfile(tenant.donoId, upd);
+            T.ok('✓ Informações atualizadas com sucesso!');
+          }
         }
-        T.ok('✓ Informações atualizadas com sucesso!');
         App.closeModal();
         App._loadTenants();
       } catch(err) {

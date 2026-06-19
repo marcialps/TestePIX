@@ -1,4 +1,4 @@
-import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail } from './firebase-config.js';
+import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail, updateEmail, updatePassword, deleteUser } from './firebase-config.js';
 
 let currentBarbeariaId = null;
 
@@ -232,5 +232,89 @@ export const DB = {
 
   async sendOwnerPasswordReset(email) {
     await sendPasswordResetEmail(auth, email);
+  },
+
+  async createOwnerAuthUser(email, password) {
+    // Cria um novo usuário no Firebase Auth com o email e senha fornecidos
+    // Não deleta o usuário antigo (já que não temos a senha atual)
+    // O usuário antigo ficará inativo mas existirá no Firebase Auth
+    try {
+      const newCredential = await createUserWithEmailAndPassword(auth, email, password);
+      return newCredential.user.uid;
+    } catch (error) {
+      console.error('Erro ao criar usuário no Firebase Auth:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('Este e-mail já está em uso no Firebase Auth.');
+      }
+      throw new Error('Erro ao criar usuário no Firebase Auth: ' + error.message);
+    }
+  },
+
+  async recreateOwnerAuthWithTempEmail(originalEmail, password) {
+    // Cria um novo usuário Firebase Auth usando um email temporário
+    // Depois o dono pode fazer login com a senha original e o email será atualizado
+    const tempEmail = `temp_${Date.now()}@${originalEmail.split('@')[1]}`;
+    try {
+      const newCredential = await createUserWithEmailAndPassword(auth, tempEmail, password);
+      // Atualiza o email do usuário para o original
+      await updateEmail(newCredential.user, originalEmail);
+      return newCredential.user.uid;
+    } catch (error) {
+      console.error('Erro ao recriar usuário com email temporário:', error);
+      throw new Error('Erro ao atualizar senha no Firebase Auth: ' + error.message);
+    }
+  },
+
+  async updateOwnerPasswordDirectly(uid, newPassword) {
+    // Atualiza a senha do dono diretamente no Firebase Auth
+    // Isso requer que o super admin tenha as credenciais do dono
+    // Como não temos Firebase Admin SDK, usamos uma abordagem alternativa:
+    // Atualizamos apenas o Firestore e enviamos um email de reset
+    await updateDoc(doc(db, 'users', uid), { 
+      tempPassword: newPassword,
+      passwordResetRequired: true
+    });
+  },
+
+  async updateOwnerFirebaseEmail(uid, newEmail, currentPassword) {
+    // Atualiza o email no Firebase Auth
+    // Precisamos primeiro reautenticar o usuário com a senha atual
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Nenhum usuário autenticado');
+      
+      // Reautentica com a senha atual
+      const credential = await signInWithEmailAndPassword(auth, user.email, currentPassword);
+      
+      // Atualiza o email
+      await updateEmail(credential.user, newEmail);
+      
+      // Atualiza também no Firestore
+      await updateDoc(doc(db, 'users', uid), { email: newEmail });
+      
+      return true;
+    } catch (error) {
+      console.error('Erro ao atualizar email no Firebase Auth:', error);
+      throw new Error('Senha atual incorreta ou erro ao atualizar email. O dono deve fazer login e alterar o email no painel.');
+    }
+  },
+
+  async updateOwnerFirebasePassword(uid, currentPassword, newPassword) {
+    // Atualiza a senha no Firebase Auth
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Nenhum usuário autenticado');
+      
+      // Reautentica com a senha atual
+      const credential = await signInWithEmailAndPassword(auth, user.email, currentPassword);
+      
+      // Atualiza a senha
+      await updatePassword(credential.user, newPassword);
+      
+      return true;
+    } catch (error) {
+      console.error('Erro ao atualizar senha no Firebase Auth:', error);
+      throw new Error('Senha atual incorreta ou erro ao atualizar senha.');
+    }
   }
 };
