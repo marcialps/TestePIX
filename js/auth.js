@@ -1,4 +1,4 @@
-import { auth, db, doc, getDoc, setDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, updateEmail } from './firebase-config.js';
+import { auth, db, doc, getDoc, setDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, verifyBeforeUpdateEmail } from './firebase-config.js';
 import { DB } from './db.js';
 
 export const Auth = {
@@ -124,14 +124,20 @@ export const Auth = {
       if (!this.cur) throw new Error('Usuário não autenticado.');
       if (!auth.currentUser) throw new Error('Sessão Firebase inválida.');
 
-      // Atualiza email no Firebase Authentication
-      await updateEmail(auth.currentUser, newEmail);
+      // Envia email de verificação para o novo email
+      // O email só será atualizado quando o usuário clicar no link de verificação
+      const actionCodeSettings = {
+        url: window.location.href.split('#')[0] + '?b=' + (this.cur.barbeariaId || '') + '#admin-settings',
+        handleCodeInApp: true
+      };
+      await verifyBeforeUpdateEmail(auth.currentUser, newEmail, actionCodeSettings);
 
-      // Atualiza email no Firestore
-      await updateDoc(doc(db, 'users', this.cur.id), { email: newEmail });
+      // Atualiza email no Firestore (antecipadamente)
+      await updateDoc(doc(db, 'users', this.cur.id), { email: newEmail, pendingEmail: newEmail });
 
       // Atualiza cache local
       this.cur.email = newEmail;
+      this.cur.pendingEmail = newEmail;
 
       return this.cur;
     } catch (e) {

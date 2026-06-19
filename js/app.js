@@ -1390,7 +1390,7 @@ const rAdmSettings = () => {
       <div class="fg">
         <label class="flabel">Novo E-mail</label>
         <input type="email" name="newEmail" class="fc" placeholder="Digite seu novo e-mail">
-        <div style="font-size:.75rem;color:var(--text3);margin-top:5px">Ao alterar o e-mail, você precisará fazer login novamente.</div>
+        <div style="font-size:.75rem;color:var(--text3);margin-top:5px">Um e-mail de verificação será enviado para o novo endereço. O e-mail só será alterado após você clicar no link de confirmação.</div>
       </div>
       <div id="settingsErr" class="ferr" style="display:none;margin-bottom:12px"></div>
       <button type="submit" class="btn btn-primary w-full btn-lg" id="btnSaveSettings">✓ Salvar Alterações</button>
@@ -2776,11 +2776,8 @@ export const App = {
       // Atualiza email se fornecido
       if(newEmail && newEmail !== Auth.cur.email){
         await Auth.updateCurrentUserEmail(newEmail);
-        T.ok('✓ E-mail atualizado! Você precisará fazer login novamente.');
-        setTimeout(() => {
-          Auth.logout();
-          Nav.go('login');
-        }, 2000);
+        T.ok('✓ Um e-mail de verificação foi enviado para ' + newEmail + '. Clique no link para confirmar a alteração.');
+        this._renderInPlace();
         return;
       }
       T.ok('✓ Informações atualizadas!');
