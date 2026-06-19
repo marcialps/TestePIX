@@ -2049,14 +2049,7 @@ export const App = {
         if (tenant.donoId) {
           const upd = {};
           if (ownerName  && ownerName  !== owner?.name)  upd.name  = ownerName;
-          if (ownerEmail && ownerEmail !== owner?.email) {
-            // NÃO atualiza o email no Firestore ainda
-            // Apenas envia reset de senha para o novo email
-            // Quando o dono completar o reset, o Firebase Auth terá o novo email
-            // Auth.login() sincronizará Firestore com Firebase Auth
-            await DB.sendOwnerPasswordReset(ownerEmail);
-            T.info('Um link de redefinição de senha foi enviado para o novo email. O dono deve concluir o reset para ativar o novo email.');
-          }
+          if (ownerEmail && ownerEmail !== owner?.email) upd.email = ownerEmail;
           if (Object.keys(upd).length > 0) await DB.updateUserProfile(tenant.donoId, upd);
         }
         T.ok('✓ Informações atualizadas com sucesso!');
