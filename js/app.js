@@ -2920,7 +2920,10 @@ export const App = {
     }
 
     Auth.init((user) => { this.render(); });
-    window.addEventListener('hashchange',()=>this.render());
+    window.addEventListener('hashchange',()=>{
+      // Só renderiza após o Firebase Auth ter resolvido a sessão
+      if(Auth._initialized) this.render();
+    });
   }
 };
 
