@@ -1,5 +1,20 @@
-import { auth, db, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, verifyBeforeUpdateEmail, updatePassword } from './firebase-config.js';
+import { auth, db, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, verifyBeforeUpdateEmail, updatePassword, query, collection, where, getDocs } from './firebase-config.js';
 import { DB } from './db.js';
+
+// Helper functions for phone/email handling
+const isPhoneNumber = (input) => {
+  const cleaned = input.replace(/\D/g, '');
+  return cleaned.length >= 10 && cleaned.length <= 15 && !input.includes('@');
+};
+
+const normalizePhone = (phone) => {
+  return phone.replace(/\D/g, '');
+};
+
+const generateDummyEmail = (phone) => {
+  const cleaned = normalizePhone(phone);
+  return `${cleaned}@phone.barbearia.local`;
+};
 
 export const Auth = {
   cur: null,
@@ -24,8 +39,25 @@ export const Auth = {
     });
   },
 
-  async login(email, pw) {
+  async login(emailOrPhone, pw) {
     try {
+      let email = emailOrPhone;
+      
+      // If input looks like a phone number, find the user by phone
+      if (isPhoneNumber(emailOrPhone)) {
+        const cleanedPhone = normalizePhone(emailOrPhone);
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('phone', '==', cleanedPhone));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          throw new Error('Telefone não cadastrado.');
+        }
+        
+        const userDoc = querySnapshot.docs[0].data();
+        email = userDoc.email;
+      }
+      
       const cred = await signInWithEmailAndPassword(auth, email, pw);
       const docSnap = await getDoc(doc(db, 'users', cred.user.uid));
       if (docSnap.exists()) {
@@ -72,18 +104,44 @@ export const Auth = {
     }
   },
 
-  async register({ name, email, phone, pw, role = 'customer', barbeariaId = null }) {
+  async register({ name, emailOrPhone, pw, role = 'customer', barbeariaId = null }) {
     try {
       // Usa tenant da URL para clientes
       const tId = barbeariaId || DB.getBarbeariaId();
+      
+      let email = emailOrPhone;
+      let phone = '';
+      
+      // Check if input is a phone number
+      if (isPhoneNumber(emailOrPhone)) {
+        phone = normalizePhone(emailOrPhone);
+        email = generateDummyEmail(phone);
+        
+        // Check if phone already exists
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('phone', '==', phone));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          throw new Error('Este telefone já está cadastrado.');
+        }
+      } else {
+        // Input is email, check if email already exists
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', emailOrPhone.toLowerCase().trim()));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          throw new Error('Este e-mail já está cadastrado.');
+        }
+        email = emailOrPhone.toLowerCase().trim();
+      }
       
       const cred = await createUserWithEmailAndPassword(auth, email, pw);
       await updateProfile(cred.user, { displayName: name });
       
       const userDoc = {
         name: name.trim(),
-        email: email.trim(),
-        phone: phone || '',
+        email: email,
+        phone: phone,
         role,
         barbeariaId: tId,
         points: 0,
@@ -97,6 +155,7 @@ export const Auth = {
       console.error(e);
       if (e.code === 'auth/email-already-in-use') throw new Error('Este e-mail já está cadastrado.');
       if (e.code === 'auth/weak-password') throw new Error('A senha deve ter pelo menos 6 caracteres.');
+      if (e.code === 'auth/invalid-email') throw new Error('E-mail inválido.');
       throw new Error('Erro ao criar conta: ' + e.message);
     }
   },

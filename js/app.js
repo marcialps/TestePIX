@@ -277,8 +277,8 @@ const rLogin = () => `
     <p class="auth-sub">Entre com seus dados para continuar</p>
     <form id="loginF">
       <div class="fg">
-        <label class="flabel">E-mail</label>
-        <input type="email" name="email" class="fc" placeholder="seu@email.com" required>
+        <label class="flabel">E-mail ou Telefone</label>
+        <input type="text" name="emailOrPhone" class="fc" placeholder="seu@email.com ou (11) 99999-9999" required>
       </div>
       <div class="fg">
         <label class="flabel">Senha</label>
@@ -310,8 +310,7 @@ const rRegister = () => `
     <p class="auth-sub">Preencha os dados abaixo para se cadastrar</p>
     <form id="regF">
       <div class="fg"><label class="flabel">Nome completo *</label><input type="text" name="name" class="fc" required></div>
-      <div class="fg"><label class="flabel">E-mail *</label><input type="email" name="email" class="fc" required></div>
-      <div class="fg"><label class="flabel">Telefone</label><input type="tel" name="phone" class="fc"></div>
+      <div class="fg"><label class="flabel">E-mail ou Telefone *</label><input type="text" name="emailOrPhone" class="fc" required placeholder="seu@email.com ou (11) 99999-9999"></div>
       <div class="fg"><label class="flabel">Senha * (mín 6 caracteres)</label><input type="password" name="pw" class="fc" required minlength="6"></div>
       <div class="fg"><label class="flabel">Confirmar senha *</label><input type="password" name="pw2" class="fc" required></div>
       <div id="regErr" class="ferr" style="margin-bottom:12px;display:none"></div>
@@ -1882,7 +1881,7 @@ export const App = {
       const b=document.getElementById('btnLogin'); b.disabled=true; b.textContent='Entrando...';
       const fd=new FormData(e.target), err=document.getElementById('loginErr');
       try{
-        const u = await Auth.login(fd.get('email'), fd.get('pw'));
+        const u = await Auth.login(fd.get('emailOrPhone'), fd.get('pw'));
         if(u.role === 'customer' || u.role === 'admin' || u.role === 'barber') {
            if(u.barbeariaId !== DB.getBarbeariaId() && DB.getBarbeariaId()) {
              await Auth.logout(); throw new Error('Conta não pertence a esta barbearia.');
@@ -1900,7 +1899,7 @@ export const App = {
       const fd=new FormData(e.target), err=document.getElementById('regErr');
       if(fd.get('pw')!==fd.get('pw2')){err.textContent='As senhas não conferem.';err.style.display='block';b.disabled=false;b.textContent='Criar minha conta';return;}
       try{
-        await Auth.register({name:fd.get('name'),email:fd.get('email'),phone:fd.get('phone'),pw:fd.get('pw')});
+        await Auth.register({name:fd.get('name'),emailOrPhone:fd.get('emailOrPhone'),pw:fd.get('pw')});
         T.ok('Cadastro realizado com sucesso!'); Nav.go('home');
       }
       catch(ex){err.textContent=ex.message;err.style.display='block'; b.disabled=false;b.textContent='Criar minha conta';}
