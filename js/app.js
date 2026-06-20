@@ -442,10 +442,7 @@ const rBooking = () => {
     return `${i>0?`<div class="step-line ${n-1<step?'done':''}"></div>`:''}<div class="wiz-step"><div class="step-c ${cc}">${done?'✓':n}</div><span class="step-lbl ${cc}">${lbl}</span></div>`;
   }).join('');
 
-  if(step===5){
-    BS.reset();
-    return rBooking();
-  }
+  if(step===5) return `<div class="page"><div class="container">${rBkSuccess(_lastPixPayload, BS.service?.price, _lastPixAptId)}</div></div>`;
 
   const content = step===1?rBkS1():step===2?rBkS2():step===3?rBkS3():rBkS4();
   return `
@@ -605,7 +602,8 @@ const rBkSuccess = (pixPayload = null, valor = 0, aptId = null) => {
   <p style="color:var(--text2);font-size:.9rem">Seu horário está reservado.</p>
   ${pixSection}
   <div style="display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap">
-    <button class="btn btn-primary btn-lg" onclick="Nav.go('appointments')">📅 Ver meus agendamentos</button>
+    <button class="btn btn-primary btn-lg" onclick="App.newBk()">＋ Novo Agendamento</button>
+    <button class="btn btn-ghost btn-lg" onclick="Nav.go('appointments')">📅 Ver meus agendamentos</button>
   </div>
 </div>`;
 };
