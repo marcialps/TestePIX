@@ -442,7 +442,10 @@ const rBooking = () => {
     return `${i>0?`<div class="step-line ${n-1<step?'done':''}"></div>`:''}<div class="wiz-step"><div class="step-c ${cc}">${done?'✓':n}</div><span class="step-lbl ${cc}">${lbl}</span></div>`;
   }).join('');
 
-  if(step===5) return `<div class="page"><div class="container">${rBkSuccess(_lastPixPayload, BS.service?.price, _lastPixAptId)}</div></div>`;
+  if(step===5){
+    BS.reset();
+    return rBooking();
+  }
 
   const content = step===1?rBkS1():step===2?rBkS2():step===3?rBkS3():rBkS4();
   return `
