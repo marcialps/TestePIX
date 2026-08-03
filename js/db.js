@@ -1,4 +1,4 @@
-import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail } from './firebase-config.js';
+import { db, auth, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, sendPasswordResetEmail, writeBatch } from './firebase-config.js';
 
 let currentBarbeariaId = null;
 
@@ -232,5 +232,59 @@ export const DB = {
 
   async sendOwnerPasswordReset(email) {
     await sendPasswordResetEmail(auth, email);
+  },
+
+  // ==============================
+  // CONCILIAÇÃO BANCÁRIA
+  // ==============================
+  async loadBankImports() {
+    if (!currentBarbeariaId) return [];
+    const q = query(collection(db, 'bankImports'), where('barbeariaId', '==', currentBarbeariaId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  },
+
+  async loadBankTransactions() {
+    if (!currentBarbeariaId) return [];
+    const q = query(collection(db, 'bankTransactions'), where('barbeariaId', '==', currentBarbeariaId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  async createBankImport(meta) {
+    const ref = await addDoc(collection(db, 'bankImports'), {
+      ...meta,
+      barbeariaId: currentBarbeariaId,
+      createdAt: new Date().toISOString()
+    });
+    return ref.id;
+  },
+
+  async addBankTransactions(txs) {
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+    txs.forEach(t => {
+      const ref = doc(collection(db, 'bankTransactions'));
+      batch.set(ref, { ...t, barbeariaId: currentBarbeariaId, createdAt: now });
+    });
+    await batch.commit();
+  },
+
+  async deleteBankImport(importId) {
+    const q = query(collection(db, 'bankTransactions'), where('importId', '==', importId));
+    const snap = await getDocs(q);
+    const batch = writeBatch(db);
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    await deleteDoc(doc(db, 'bankImports', importId));
+  },
+
+  async updateBankTransaction(id, patch) {
+    await updateDoc(doc(db, 'bankTransactions', id), patch);
+  },
+
+  async deleteBankTransaction(id) {
+    await deleteDoc(doc(db, 'bankTransactions', id));
   }
 };

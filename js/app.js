@@ -1,6 +1,7 @@
 import { Auth } from './auth.js';
 import { DB } from './db.js';
 import { generatePixPayload, sanitizeChave } from './pix.js';
+import { parseBankFile, reconcileBank, fingerprintList, daysBetween } from './reconciliation.js';
 
 /* =====================================================
    UTILITÁRIOS
@@ -15,6 +16,12 @@ const fmtDate = d => {
 const fmtLong = d => {
   if(!d) return '';
   return new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+};
+const fmtDatetime = iso => {
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d)) return String(iso);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 };
 const dayMonth = d => {
   if(!d) return {day:'',mon:''};
@@ -187,7 +194,8 @@ const rNavbar = () => {
       {h:'admin',l:'Dashboard',i:'◈'},
       {h:'admin-services',l:'Serviços',i:'✦'},
       {h:'admin-barbers',l:'Barbeiros',i:'✂'},
-      {h:'admin-appointments',l:'Agendamentos',i:'📅'}
+      {h:'admin-appointments',l:'Agendamentos',i:'📅'},
+      {h:'admin-recon',l:'Conciliação',i:'⇄'}
     ];
     mobileLinks = [
       {h:'admin',l:'Dashboard',i:'◈'},
@@ -196,6 +204,7 @@ const rNavbar = () => {
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
       {h:'admin-clients',l:'Clientes',i:'👥'},
       {h:'admin-reports',l:'Relatórios',i:'📊'},
+      {h:'admin-recon',l:'Conciliação',i:'⇄'},
       {h:'admin-pix',l:'Configurações PIX',i:'⚡'},
       {h:'admin-reminders',l:'Lembretes Whats',i:'💬'}
     ];
@@ -923,6 +932,7 @@ const rAdmLayout = (active, content) => {
     {id:'admin-appointments',i:'📅',l:'Agendamentos'},
     {id:'admin-clients',i:'👥',l:'Clientes'},
     {id:'admin-reports',i:'📊',l:'Relatórios'},
+    {id:'admin-recon',i:'⇄',l:'Conciliação'},
     {id:'admin-pix',i:'⚡',l:'Configurações PIX'},
     {id:'admin-reminders',i:'💬',l:'Lembretes Whats'},
     {id:'admin-settings',i:'⚙️',l:'Minha Conta'},
@@ -1663,8 +1673,179 @@ const rAdmReports = () => {
 };
 
 /* =====================================================
-   SUPER ADMIN
+   CONCILIAÇÃO BANCÁRIA
 ===================================================== */
+const reconStatusBadge = (t, result) => {
+  if (t.tipo === 'D') return '<span class="badge b-grey">💸 Despesa/Taxa</span>';
+  if (result.matchMap && result.matchMap[t.id]) return '<span class="badge b-success">✓ Conciliado</span>';
+  return '<span class="badge b-warning">⚠ Sem correspondência</span>';
+};
+
+const reconAptName = (aptId) => {
+  if (!aptId) return '';
+  const apt = DB.apts().find(a => a.id === aptId);
+  if (!apt) return '';
+  const sv = DB.services().find(s => s.id === apt.serviceId);
+  const client = _tenantUsers ? _tenantUsers.find(u => u.id === apt.userId) : null;
+  const label = client?.name || _tenantUsers?.find(n => n.id === apt.userId)?.name || 'Agendamento';
+  return `<div style="font-size:.75rem;color:var(--success)">↳ ${esc(label)} · ${esc(sv?.name || '')}</div>`;
+};
+
+const rAdmRecon = () => {
+  if (App._reconTxs === undefined) {
+    setTimeout(() => App.reconInit(), 50);
+    return rAdmLayout('admin-recon', `<div style="padding:100px;text-align:center;color:var(--gold)">Carregando conciliação...</div>`);
+  }
+
+  const imports = App._reconImports || [];
+  const txs = App._reconTxs || [];
+  const result = App._reconResult;
+  const st = App._reconState || { status: 'idle' };
+  const filter = App._reconFilter || 'todos';
+  const map = result && result.matchMap ? result.matchMap : {};
+  const fmtCr = (t) => (t.tipo === 'D' ? '−' : '+') + fmt(t.valor);
+
+  let rows = result ? txs.slice().sort((a, b) => String(b.data).localeCompare(String(a.data))) : [];
+  if (filter === 'conciliados') rows = txs.filter(t => t.tipo === 'C' && map[t.id]);
+  else if (filter === 'despesas') rows = txs.filter(t => t.tipo === 'D');
+  else if (filter === 'divergencias') rows = txs.filter(t => t.tipo === 'C' && !map[t.id]);
+
+  const stats = result ? [
+    { l: 'Créditos no extrato', v: fmt(result.totalCredits || 0), c: 'var(--success)', s: `${result.creditsUnmatched.length} sem casar` },
+    { l: 'Conciliado', v: fmt(result.totalConciliado || 0), c: 'var(--info)', s: `${result.conciliados.length} casamentos` },
+    { l: 'Divergências', v: result.totalDivergencias || 0, c: 'var(--warning)', s: `${result.esperadosNaoRecebidos.length} não recebidos` },
+    { l: 'Despesas/Taxas', v: fmt(result.totalDespesas || 0), c: 'var(--danger)', s: `${result.debitsUnmatched.length} débitos` }
+  ] : [];
+
+  const previewCard = st.status === 'preview' ? `
+    <div class="card" style="margin-bottom:24px;border-color:rgba(201,162,39,.4);padding:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+        <div>
+          <div style="font-weight:700;font-family:var(--ft);font-size:1.05rem">📂 Arquivo lido</div>
+          <div style="font-size:.82rem;color:var(--text2)">${esc(st.fileName)} · formato <strong>${String(st.format).toUpperCase()}</strong></div>
+          <div style="font-size:.82rem;color:var(--text2)">${st.txs.length} transação(ões) detectada(s) — revise e confirme a importação</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="App.reconImport()">✓ Importar ${st.txs.length} transações</button>
+          <button class="btn btn-ghost" onclick="App.reconDiscard()">Cancelar</button>
+        </div>
+      </div>
+      <div class="tbl-wrap" style="max-height:280px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Tipo</th></tr></thead>
+          <tbody>
+            ${st.txs.slice(0, 15).map(t => `<tr>
+              <td>${fmtDate(t.data)}</td><td>${esc(t.descricao || '—')}</td>
+              <td style="font-weight:700;${t.tipo==='D'?'color:var(--danger)':'color:var(--success)'}">${fmtCr(t)}</td>
+              <td><span class="badge ${t.tipo==='D'?'b-danger':'b-success'}">${t.tipo}</span></td>
+            </tr>`).join('')}
+            ${st.txs.length > 15 ? `<tr><td colspan="4" style="text-align:center;color:var(--text3)">… e mais ${st.txs.length - 15} transações</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    </div>` : '';
+
+  const importsCard = `
+    <div class="card" style="padding:20px;margin-bottom:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div style="font-weight:700;font-family:var(--ft);font-size:1.05rem">📥 Extratos importados</div>
+      </div>
+      ${imports.length === 0 ? '<div style="font-size:.85rem;color:var(--text2)">Nenhum extrato importado ainda.</div>' : `
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Arquivo</th><th>Formato</th><th>Transações</th><th>Importado em</th><th></th></tr></thead>
+          <tbody>
+            ${imports.map(im => `<tr>
+              <td>${esc(im.fileName || im.id)}</td>
+              <td>${String(im.format || '').toUpperCase()}</td>
+              <td>${im.count ?? '—'}</td>
+              <td>${im.createdAt ? fmtDatetime(im.createdAt) : '—'}</td>
+              <td><button class="btn btn-danger btn-sm" onclick="App.reconDeleteImport('${im.id}')">Excluir</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`}
+    </div>`;
+
+  const expectedCard = result && result.esperadosNaoRecebidos.length ? `
+    <div class="card" style="margin-bottom:24px;border-color:rgba(245,158,11,.4);padding:20px">
+      <div style="font-weight:700;font-family:var(--ft);font-size:1.05rem;margin-bottom:6px;color:var(--warning)">⚠️ Lançamentos internos sem recebimento no extrato</div>
+      <div style="font-size:.8rem;color:var(--text2);margin-bottom:14px">Agendamentos concluídos/PIX confirmados que NÃO aparecem no extrato do banco.</div>
+      ${result.esperadosNaoRecebidos.map(a => {
+        const sv = DB.services().find(s => s.id === a.serviceId);
+        const client = _tenantUsers.find(u => u.id === a.userId);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+          <div>
+            <div style="font-weight:600;font-size:.88rem">${esc(client?.name || '—')} · ${esc(sv?.name || '')}</div>
+            <div style="font-size:.74rem;color:var(--text2)">${fmtDate(a.date)} · PIX: ${esc(a.pixStatus || '—')}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-weight:700;color:var(--gold)">${fmt(a.price)}</span>
+            <a href="#admin-appointments" class="btn btn-sm" onclick="Nav.go('admin-appointments')">Abrir</a>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const tabs = [
+    { id: 'todos', l: `Tudo (${txs.length})` },
+    { id: 'conciliados', l: `Conciliados (${result ? result.conciliados.length : 0})` },
+    { id: 'divergencias', l: `Divergências (${result ? txs.filter(t => t.tipo === 'C' && !map[t.id]).length : 0})` },
+    { id: 'despesas', l: `Despesas (${result ? txs.filter(t => t.tipo === 'D').length : 0})` }
+  ];
+
+  return rAdmLayout('admin-recon', `
+    <div class="ph">
+      <div><h1 class="ptitle">⇄ Conciliação Bancária</h1><p class="psub">Importe seu extrato e cruze com os agendamentos</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="App.reconSample('ofx')">⬇ exemplo OFX</button>
+        <button class="btn btn-ghost btn-sm" onclick="App.reconSample('ofd')">⬇ exemplo OFD</button>
+        <button class="btn btn-ghost btn-sm" onclick="App.reconSample('csv')">⬇ exemplo CSV</button>
+        <input type="file" id="reconFile" accept=".ofx,.ofd,.csv,text/csv,text/plain,application/xml" style="display:none" onchange="App.reconFileSelected(event)">
+        <button class="btn btn-primary" onclick="document.getElementById('reconFile').click()">📥 Importar Extrato</button>
+      </div>
+    </div>
+
+    ${previewCard}
+
+    <div class="stats-grid">
+      ${stats.map(s => `<div class="stat-card"><div class="scl">${s.l}</div><div class="scv" style="color:${s.c}">${s.v}</div><div style="font-size:.7rem;color:var(--text3);margin-top:4px">${s.s}</div></div>`).join('')}
+    </div>
+
+    ${expectedCard}
+
+    ${importsCard}
+
+    <div class="card" style="padding:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div style="font-weight:700;font-family:var(--ft);font-size:1.05rem">Movimentações do extrato</div>
+        ${txs.length === 0 ? '' : `<button class="btn btn-ghost btn-sm" onclick="App.reconRun()">↻ Recalcular</button>`}
+      </div>
+      <div class="tabs" style="margin-bottom:16px">
+        ${tabs.map(t => `<div class="tab ${filter === t.id ? 'active' : ''}" onclick="App.reconSelectFilter('${t.id}')">${t.l}</div>`).join('')}
+      </div>
+      ${rows.length === 0 ? `<div class="empty"><div class="empty-ico">⇄</div><div class="empty-t">Nenhuma movimentação neste filtro.</div></div>` : `
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            ${rows.map(t => `<tr>
+              <td>${fmtDate(t.date)}</td>
+              <td>${esc(t.descricao || '—')}<br>${reconAptName(t.aptId || map[t.id])}</td>
+              <td style="font-weight:700;${t.tipo==='D'?'color:var(--danger)':'color:var(--success)'}">${fmtCr(t)}</td>
+              <td>${reconStatusBadge(t, result)}</td>
+              <td>
+                ${t.tipo === 'C' && !map[t.id] ? `<button class="btn btn-sm" onclick="App.reconLinkModal('${t.id}')">🔗 Vincular</button>` :
+                 (map[t.id] ? `<button class="btn btn-ghost btn-sm" onclick="App.reconUnlink('${t.id}')">Desvincular</button>` : '')}
+                ${!map[t.id] ? `<button class="btn btn-danger btn-sm" onclick="App.reconDeleteTx('${t.id}')">✕</button>` : ''}
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`}
+    </div>
+  `);
+};
 const rSuperAdmin = () => `
 <div class="adm-layout">
   <aside class="adm-sidebar"><div class="adm-st">Super Admin</div><a href="#superadmin" class="adm-nav-item active">◈ <span>Tenants</span></a></aside>
@@ -1802,6 +1983,7 @@ export const App = {
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
     else if(hash==='admin-reports') content=rAdmReports();
+    else if(hash==='admin-recon') content=rAdmRecon();
     else if(hash==='admin-pix') content=rAdmPix();
     else if(hash==='admin-reminders') content=rAdmReminders();
     else if(hash==='admin-settings') content=rAdmSettings();
@@ -1852,6 +2034,7 @@ export const App = {
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
     else if(hash==='admin-reports') content=rAdmReports();
+    else if(hash==='admin-recon') content=rAdmRecon();
     else if(hash==='admin-pix') content=rAdmPix();
     else if(hash==='admin-reminders') content=rAdmReminders();
     else if(hash==='admin-settings') content=rAdmSettings();
@@ -2911,6 +3094,206 @@ export const App = {
         }
       }
     });
+  },
+
+  // --- Conciliação Bancária ---
+  async reconInit(){
+    try {
+      const [imports, txs] = await Promise.all([DB.loadBankImports(), DB.loadBankTransactions()]);
+      this._reconImports = imports;
+      this._reconTxs = txs;
+      this._reconResult = reconcileBank(txs, DB.apts());
+      this._reconFilter = this._reconFilter || 'todos';
+      this._renderInPlace();
+    } catch(e){ T.err('Erro ao carregar conciliação: '+e.message); }
+  },
+
+  reconSelectFilter(filter){
+    this._reconFilter = filter;
+    this._reconResetState();
+    this._renderInPlace();
+  },
+
+  _reconResetState(){
+    if(this._reconState && this._reconState.status === 'preview') this._reconState = { status:'idle' };
+  },
+
+  reconReadFile(file, cb){
+    if(!file.arrayBuffer){ file.text().then(cb); return; }
+    file.arrayBuffer().then(ab => {
+      let text = new TextDecoder('utf-8').decode(ab);
+      if(text.includes('\uFFFD')){
+        try{ text = new TextDecoder('windows-1252').decode(ab); }catch(e){}
+      }
+      cb(text);
+    }).catch(() => cb(''));
+  },
+
+  reconFileSelected(e){
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    this.reconReadFile(file, (content) => {
+      try{
+        const parsed = parseBankFile(file.name, content);
+        if(!parsed.count){ T.err('Nenhuma transação reconhecida no arquivo.'); return; }
+        this._reconState = { status:'preview', format:parsed.format, fileName:file.name, txs:parsed.transactions };
+        this._renderInPlace();
+        T.ok(`Arquivo ${String(parsed.format).toUpperCase()} lido com ${parsed.count} transação(ões).`);
+      }catch(err){ T.err(err.message); this._renderInPlace(); }
+    });
+  },
+
+  async reconImport(){
+    const st = this._reconState;
+    if(!st || st.status !== 'preview') return;
+    try{
+      const fp = fingerprintList(st.txs);
+      const exists = (this._reconImports || []).find(i => i.fingerprint === fp);
+      if(exists){ T.warn('Este arquivo já foi importado anteriormente.'); return; }
+      const importId = await DB.createBankImport({
+        fileName: st.fileName,
+        format: st.format,
+        count: st.txs.length,
+        fingerprint: fp
+      });
+      await DB.addBankTransactions(st.txs.map(t => ({ ...t, importId })));
+      this._reconState = { status:'idle' };
+      this._reconTxs = undefined;
+      T.ok(`Importadas ${st.txs.length} transações!`);
+      await this.reconInit();
+    }catch(e){ T.err('Erro ao importar: '+e.message); }
+  },
+
+  reconDiscard(){
+    this._reconState = { status:'idle' };
+    this._renderInPlace();
+  },
+
+  reconRun(){
+    this._reconResult = reconcileBank(this._reconTxs || [], DB.apts());
+    this._renderInPlace();
+    T.ok('Conciliação recalculada.');
+  },
+
+  async reconDeleteImport(id){
+    if(!confirm('Excluir este extrato e todas as suas transações? Esta ação não pode ser desfeita.')) return;
+    try{
+      await DB.deleteBankImport(id);
+      T.ok('Extrato excluído.');
+      this._reconTxs = undefined;
+      await this.reconInit();
+    }catch(e){ T.err('Erro: '+e.message); }
+  },
+
+  async reconDeleteTx(id){
+    if(!confirm('Remover esta transação do extrato?')) return;
+    try{
+      await DB.deleteBankTransaction(id);
+      T.ok('Transação removida.');
+      await this.reconInit();
+    }catch(e){ T.err('Erro: '+e.message); }
+  },
+
+  async reconLink(bankTxId, aptId){
+    try{
+      await DB.updateBankTransaction(bankTxId, { aptId, linkedAt: new Date().toISOString() });
+      T.ok('Transação vinculada com sucesso!');
+      App.closeModal();
+      await this.reconInit();
+    }catch(e){ T.err('Erro ao vincular: '+e.message); }
+  },
+
+  async reconUnlink(bankTxId){
+    try{
+      await DB.updateBankTransaction(bankTxId, { aptId: null, linkedAt: null });
+      T.ok('Vínculo removido.');
+      await this.reconInit();
+    }catch(e){ T.err('Erro: '+e.message); }
+  },
+
+  reconLinkModal(bankTxId){
+    const tx = (this._reconTxs || []).find(t => t.id === bankTxId);
+    if(!tx){ T.err('Transação não encontrada.'); return; }
+    const apts = DB.apts().filter(a => a.status !== 'cancelado' && a.status !== 'cancelada');
+    const sameVal = apts.filter(a => Math.abs(Number(a.price || 0) - tx.valor) < 0.01);
+    const nearDate = sameVal.filter(a => Math.abs(daysBetween(tx.data, a.date)) <= 2);
+    const others = apts.filter(a => !sameVal.includes(a))
+      .map(a => ({ a, d: Math.abs(daysBetween(tx.data, a.date)) }))
+      .filter(o => o.d <= 3).sort((x, y) => x.d - y.d).map(o => o.a);
+    const candidates = [...nearDate, ...sameVal.filter(a => !nearDate.includes(a)), ...others].slice(0, 25);
+
+    const rows = candidates.length ? candidates.map(a => {
+      const sv = DB.services().find(s => s.id === a.serviceId);
+      const client = _tenantUsers.find(u => u.id === a.userId);
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <div>
+          <div style="font-weight:600;font-size:.86rem">${esc(client?.name || '—')} · ${esc(sv?.name || '')}</div>
+          <div style="font-size:.72rem;color:var(--text2)">${fmtDate(a.date)} · ${fmt(a.price)} · ${esc(a.status || '')}</div>
+        </div>
+        <button class="btn btn-sm" onclick="App.reconLink('${bankTxId}','${a.id}')">Vincular</button>
+      </div>`;
+    }).join('') : '<div style="padding:16px;text-align:center;color:var(--text2)">Nenhum agendamento candidato.</div>';
+
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal">
+        <div class="modal-head"><h3 class="modal-title">🔗 Vincular transação</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <div style="font-size:.82rem;color:var(--text2);margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+          <strong style="color:var(--text)">${fmtDate(tx.data)}</strong> · ${esc(tx.descricao || '—')} ·
+          <span style="color:${tx.tipo==='D'?'var(--danger)':'var(--success)'}">${(tx.tipo==='D'?'−':'+')+fmt(tx.valor)}</span>
+        </div>
+        <div style="font-size:.75rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Sugestões de agendamento</div>
+        ${rows}
+      </div>
+    </div>`;
+  },
+
+  reconSample(format){
+    let text = '';
+    if(format === 'ofx'){
+      text = `OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+<OFX>
+<SIGNONMSGSRSV1><SONRS><STATUS><CODE>0</CODE></STATUS></SONRS></SIGNONMSGSRSV1>
+<BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKTRANLIST>
+<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260115120000</DTPOSTED><TRNAMT>45.00</TRNAMT><FITID>20260115001</FITID><MEMO>PIX RECEBIDO</MEMO></STMTTRN>
+<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260115120000</DTPOSTED><TRNAMT>30.00</TRNAMT><FITID>20260115002</FITID><MEMO>PIX RECEBIDO CORTE</MEMO></STMTTRN>
+<STMTTRN><TRNTYPE>DEBIT</TRNTYPE><DTPOSTED>20260116090000</DTPOSTED><TRNAMT>-12.90</TRNAMT><FITID>20260116001</FITID><MEMO>TARIFA BANCARIA</MEMO></STMTTRN>
+</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1>
+</OFX>`;
+    } else if(format === 'ofd'){
+      text = `<?xml version="1.0" encoding="UTF-8"?>
+<OFD>
+  <Arquivo>
+    <Movimentos>
+      <Movimento><Data>2026-01-15</Data><Valor Tipo="C">45.00</Valor><Historico>PIX RECEBIDO</Historico></Movimento>
+      <Movimento><Data>2026-01-15</Data><Valor Tipo="C">30.00</Valor><Historico>PIX RECEBIDO CORTE</Historico></Movimento>
+      <Movimento><Data>2026-01-16</Data><Valor Tipo="D">12.90</Valor><Historico>TARIFA BANCARIA</Historico></Movimento>
+    </Movimentos>
+  </Arquivo>
+</OFD>`;
+    } else {
+      text = `Data;Valor;Historico
+2026-01-15;45.00;PIX RECEBIDO
+2026-01-15;30.00;PIX RECEBIDO CORTE
+2026-01-16;-12.90;TARIFA BANCARIA`;
+    }
+    const blob = new Blob([text], { type:'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'exemplo-conciliacao.' + format;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   },
 
   tabBarberApt(tab){

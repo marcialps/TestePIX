@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getFirestore, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, Timestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, verifyBeforeUpdateEmail, updatePassword } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -17,4 +17,4 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
-export { app, db, auth, googleProvider, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut, onAuthStateChanged, updateProfile, Timestamp, sendPasswordResetEmail, verifyBeforeUpdateEmail, updatePassword };
+export { app, db, auth, googleProvider, collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc, query, where, writeBatch, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut, onAuthStateChanged, updateProfile, Timestamp, sendPasswordResetEmail, verifyBeforeUpdateEmail, updatePassword };
