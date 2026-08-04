@@ -1581,12 +1581,16 @@ const rAdmReminders = () => {
 };
 
 const rAdmReports = () => {
-  const all = DB.apts().filter(a => a.status !== 'cancelado');
-  const filter = App._reportFilter || 'mes';
+  const all = DB.apts();
+  const pros = DB.pros();
+  const svcs = DB.services();
   const now = new Date();
-  let filtered = [];
-  let labels = [];
-  let dataPoints = [];
+
+  const period = App._reportFilter || 'mes';
+  const barberId = App._reportBarber || '';
+  const svcId = App._reportService || '';
+  const from = App._reportFrom || '';
+  const to = App._reportTo || '';
 
   const getStartOfWeek = (d) => {
     const day = d.getDay();
@@ -1594,74 +1598,201 @@ const rAdmReports = () => {
     return new Date(d.setDate(diff));
   };
 
-  if (filter === 'dia') {
-    const today = todayStr();
-    filtered = all.filter(a => a.date === today);
-    labels = [fmtDate(today)];
-    dataPoints = [filtered.reduce((s, a) => s + Number(a.price || 0), 0)];
-  } else if (filter === 'semana') {
-    const start = getStartOfWeek(new Date());
-    start.setHours(0,0,0,0);
-    filtered = all.filter(a => new Date(a.date + 'T12:00:00') >= start);
-    // Agrupa por dia da semana
-    const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const inPeriod = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr + 'T12:00:00');
+    if (period === 'hoje') return d.toDateString() === now.toDateString();
+    if (period === 'ontem') {
+      const y = new Date(); y.setDate(now.getDate() - 1);
+      return d.toDateString() === y.toDateString();
+    }
+    if (period === 'semana') {
+      const start = getStartOfWeek(new Date()); start.setHours(0,0,0,0);
+      return d >= start;
+    }
+    if (period === 'mes') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (period === 'custom') {
+      if (from && dateStr < from) return false;
+      if (to && dateStr > to) return false;
+      return from || to; // exige ao menos um limite
+    }
+    return true; // todo o período
+  };
+
+  const businessMatch = (a) =>
+    !barberId || a.professionalId === barberId;
+
+  const svcMatch = (a) =>
+    !svcId || a.serviceId === svcId;
+
+  const matched = all.filter(a =>
+    a.status !== 'cancelado' && inPeriod(a.date) && businessMatch(a) && svcMatch(a)
+  );
+  const cancellations = all.filter(a =>
+    a.status === 'cancelado' && inPeriod(a.date) && businessMatch(a) && svcMatch(a)
+  );
+
+  const count = matched.length;
+  const revenue = matched.reduce((s, a) => s + Number(a.price || 0), 0);
+  const avgTicket = count ? revenue / count : 0;
+  const concluidos = matched.filter(a => a.status === 'concluído').length;
+  const totalWanted = count + cancellations.length;
+  const cancelRate = totalWanted ? (cancellations.length / totalWanted) * 100 : 0;
+  const clientIds = new Set();
+  matched.forEach(a => { if (a.userId) clientIds.add('u:' + a.userId); else if (a.clientName) clientIds.add('c:' + a.clientName); });
+
+  // Dados do gráfico conforme o período
+  let labels = [], dataPoints = [];
+  const grouped = {};
+  const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  if (period === 'hoje' || period === 'ontem') {
+    const d = new Date(); d.setDate(d.getDate() - (period === 'ontem' ? 1 : 0));
+    const ds = d.toISOString().split('T')[0];
+    labels = [fmtDate(ds)];
+    dataPoints = [matched.filter(a => a.date === ds).reduce((s, a) => s + Number(a.price || 0), 0)];
+  } else if (period === 'semana') {
+    const start = getStartOfWeek(new Date()); start.setHours(0,0,0,0);
+    const days = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
     labels = days;
     dataPoints = days.map((_, i) => {
-      const d = new Date(start); d.setDate(d.getDate() + i);
+      const dd = new Date(start); dd.setDate(dd.getDate() + i);
+      const ds = dd.toISOString().split('T')[0];
+      return matched.filter(a => a.date === ds).reduce((s, a) => s + Number(a.price || 0), 0);
+    });
+  } else if (period === 'custom') {
+    const start = from ? new Date(from + 'T12:00:00') : new Date();
+    const end = to ? new Date(to + 'T12:00:00') : new Date(now);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const ds = d.toISOString().split('T')[0];
-      return all.filter(a => a.date === ds && a.status !== 'cancelado').reduce((s, a) => s + Number(a.price || 0), 0);
-    });
-  } else {
-    const month = now.getMonth();
-    const year = now.getFullYear();
-    filtered = all.filter(a => {
-      const d = new Date(a.date + 'T12:00:00');
-      return d.getMonth() === month && d.getFullYear() === year;
-    });
-    // Agrupa por semanas do mês ou últimos 30 dias
-    const last30 = [];
-    for(let i=14; i>=0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      last30.push(d.toISOString().split('T')[0]);
+      labels.push(ds.split('-')[2] + '/' + ds.split('-')[1]);
+      dataPoints.push(matched.filter(a => a.date === ds).reduce((s, a) => s + Number(a.price || 0), 0));
     }
+    if (labels.length > 90) { labels = labels.slice(-90); dataPoints = dataPoints.slice(-90); }
+  } else if (period === 'mes') {
+    const last30 = [];
+    for (let i = 29; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); last30.push(d.toISOString().split('T')[0]); }
     labels = last30.map(d => d.split('-')[2] + '/' + d.split('-')[1]);
-    dataPoints = last30.map(ds => all.filter(a => a.date === ds && a.status !== 'cancelado').reduce((s, a) => s + Number(a.price || 0), 0));
+    dataPoints = last30.map(ds => matched.filter(a => a.date === ds).reduce((s, a) => s + Number(a.price || 0), 0));
+  } else {
+    matched.forEach(a => {
+      const d = new Date(a.date + 'T12:00:00');
+      const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      grouped[k] = (grouped[k] || 0) + Number(a.price || 0);
+    });
+    const keys = Object.keys(grouped).sort();
+    labels = keys.map(k => { const [y, m] = k.split('-'); return MONTHS[+m - 1] + '/' + y.slice(2); });
+    dataPoints = keys.map(k => grouped[k]);
   }
 
-  const totalRev = filtered.reduce((s, a) => s + Number(a.price || 0), 0);
-  const avgTicket = filtered.length ? totalRev / filtered.length : 0;
-
   setTimeout(() => App._drawReportChart(labels, dataPoints), 100);
+
+  // Ranking por barbeiro
+  const barberMap = {};
+  matched.forEach(a => {
+    const pid = a.professionalId || '';
+    barberMap[pid] = barberMap[pid] || { count: 0, revenue: 0, done: 0 };
+    barberMap[pid].count++;
+    barberMap[pid].revenue += Number(a.price || 0);
+    if (a.status === 'concluído') barberMap[pid].done++;
+  });
+  const barberRanking = Object.entries(barberMap)
+    .map(([pid, s]) => {
+      const pro = pros.find(p => p.id === pid);
+      return { name: pro ? pro.name : 'Sem barbeiro', count: s.count, revenue: s.revenue, done: s.done };
+    })
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Ranking por serviço
+  const svcMap = {};
+  matched.forEach(a => {
+    const sid = a.serviceId || '';
+    svcMap[sid] = svcMap[sid] || { count: 0, revenue: 0 };
+    svcMap[sid].count++;
+    svcMap[sid].revenue += Number(a.price || 0);
+  });
+  const svcRanking = Object.entries(svcMap)
+    .map(([sid, s]) => {
+      const sv = svcs.find(x => x.id === sid);
+      return { name: sv ? sv.name : 'Sem serviço', count: s.count, revenue: s.revenue };
+    })
+    .sort((a, b) => b.revenue - a.revenue);
+
+  const PERIODS = [
+    { v: 'hoje', l: 'Hoje' },
+    { v: 'ontem', l: 'Ontem' },
+    { v: 'semana', l: 'Esta Semana' },
+    { v: 'mes', l: 'Este Mês' },
+    { v: 'todos', l: 'Todo Período' }
+  ];
+
+  const footerNote = `Agendamentos ${period === 'custom' ? 'no período selecionado' : 'no período'} · ${esc(barberId ? 'barbeiro ' + (pros.find(p => p.id === barberId)?.name || 'selecionado') : 'todos os barbeiros')} · ${esc(svcId ? 'serviço ' + (svcs.find(s => s.id === svcId)?.name || 'selecionado') : 'todos os serviços')}`;
 
   return rAdmLayout('admin-reports', `
     <div class="ph">
       <div><h1 class="ptitle">Relatórios & Métricas</h1><p class="psub">Análise de desempenho da sua barbearia</p></div>
       <div class="tabs" style="margin-bottom:0">
-        <div class="tab ${filter === 'dia' ? 'active' : ''}" onclick="App.changeReportFilter('dia')">Hoje</div>
-        <div class="tab ${filter === 'semana' ? 'active' : ''}" onclick="App.changeReportFilter('semana')">Esta Semana</div>
-        <div class="tab ${filter === 'mes' ? 'active' : ''}" onclick="App.changeReportFilter('mes')">Últimos 15 dias</div>
+        ${PERIODS.map(p => `<div class="tab ${period === p.v ? 'active' : ''}" onclick="App.changeReportFilter('${p.v}')">${p.l}</div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card" style="padding:16px;margin-bottom:20px">
+      <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
+        <div class="fg" style="margin-bottom:0;min-width:180px">
+          <label class="flabel">Barbeiro</label>
+          <select class="fc" onchange="App.changeReportBarber(this.value)">
+            <option value="">Todos os barbeiros</option>
+            ${pros.map(p => `<option value="${p.id}" ${p.id === barberId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fg" style="margin-bottom:0;min-width:180px">
+          <label class="flabel">Serviço</label>
+          <select class="fc" onchange="App.changeReportService(this.value)">
+            <option value="">Todos os serviços</option>
+            ${svcs.map(s => `<option value="${s.id}" ${s.id === svcId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label class="flabel">De</label>
+          <input type="date" class="fc" id="repFrom" value="${from}" onchange="App.reportSetRange('from', this.value)">
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label class="flabel">Até</label>
+          <input type="date" class="fc" id="repTo" value="${to}" onchange="App.reportSetRange('to', this.value)">
+        </div>
+        ${(barberId || svcId || period === 'custom') ? `<button class="btn btn-ghost btn-sm" onclick="App.reportResetFilters()">✕ Limpar filtros</button>` : ''}
       </div>
     </div>
 
     <div class="stats-grid">
       <div class="stat-card">
         <div class="scl">Agendamentos</div>
-        <div class="scv">${filtered.length}</div>
-        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">No período selecionado</div>
+        <div class="scv">${count}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">${concluidos} concluído(s)</div>
       </div>
       <div class="stat-card">
         <div class="scl">Faturamento</div>
-        <div class="scv" style="color:var(--success)">${fmt(totalRev)}</div>
-        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Receita bruta confirmada</div>
+        <div class="scv" style="color:var(--success)">${fmt(revenue)}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Receita bruta do período</div>
       </div>
       <div class="stat-card">
         <div class="scl">Ticket Médio</div>
         <div class="scv" style="color:var(--info)">${fmt(avgTicket)}</div>
-        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Média por cliente</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Média por atendimento</div>
+      </div>
+      <div class="stat-card">
+        <div class="scl">Cancelamentos</div>
+        <div class="scv" style="color:var(--danger)">${cancellations.length}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Taxa de cancelamento ${cancelRate.toFixed(1)}%</div>
+      </div>
+      <div class="stat-card">
+        <div class="scl">Clientes</div>
+        <div class="scv" style="color:var(--gold)">${clientIds.size}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Atendidos no período</div>
       </div>
     </div>
 
-    <div class="card" style="padding:20px;height:350px">
+    <div class="card" style="padding:20px;height:350px;margin-bottom:20px">
       <div style="font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:20px;display:flex;align-items:center;gap:8px">
         <span>📊</span> Evolução do Faturamento
       </div>
@@ -1669,6 +1800,42 @@ const rAdmReports = () => {
         <canvas id="reportChart"></canvas>
       </div>
     </div>
+
+    <div class="g2" style="gap:20px;margin-bottom:20px">
+      <div class="card" style="padding:20px">
+        <div style="font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">💈 Desempenho por Barbeiro</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Barbeiro</th><th>Atend.</th><th>Faturamento</th></tr></thead>
+            <tbody>
+              ${barberRanking.length ? barberRanking.map(b => `<tr>
+                <td><strong>${esc(b.name)}</strong></td>
+                <td>${b.count}</td>
+                <td style="font-weight:700;color:var(--success)">${fmt(b.revenue)}</td>
+              </tr>`).join('') : `<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text3)">Sem dados no período.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="padding:20px">
+        <div style="font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">✂ Desempenho por Serviço</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Serviço</th><th>Qtd</th><th>Faturamento</th></tr></thead>
+            <tbody>
+              ${svcRanking.length ? svcRanking.map(s => `<tr>
+                <td><strong>${esc(s.name)}</strong></td>
+                <td>${s.count}</td>
+                <td style="font-weight:700;color:var(--success)">${fmt(s.revenue)}</td>
+              </tr>`).join('') : `<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text3)">Sem dados no período.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:.75rem;color:var(--text3);text-align:center;padding-bottom:10px">${footerNote}</div>
   `);
 };
 
@@ -3043,6 +3210,32 @@ export const App = {
   // --- Relatórios ---
   changeReportFilter(filter){
     this._reportFilter = filter;
+    if (filter !== 'custom') { this._reportFrom = ''; this._reportTo = ''; }
+    this._renderInPlace();
+  },
+
+  changeReportBarber(id){
+    this._reportBarber = id;
+    this._renderInPlace();
+  },
+
+  changeReportService(id){
+    this._reportService = id;
+    this._renderInPlace();
+  },
+
+  reportSetRange(which, value){
+    if (which === 'from') this._reportFrom = value; else this._reportTo = value;
+    this._reportFilter = 'custom';
+    this._renderInPlace();
+  },
+
+  reportResetFilters(){
+    this._reportFilter = 'mes';
+    this._reportBarber = '';
+    this._reportService = '';
+    this._reportFrom = '';
+    this._reportTo = '';
     this._renderInPlace();
   },
 
