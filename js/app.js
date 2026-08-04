@@ -1293,7 +1293,7 @@ const rAdmClients = () => {
   clients.sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
   return rAdmLayout('admin-clients', `
-  <div class="ph"><div><h1 class="ptitle">Clientes</h1><p class="psub">Gerencie seus clientes e veja o histórico</p></div></div>
+  <div class="ph"><div><h1 class="ptitle">Clientes</h1><p class="psub">Gerencie seus clientes e veja o histórico</p></div><button class="btn btn-primary" onclick="App.openAdmNewClientModal()">＋ Novo Cliente</button></div>
   <div class="tbl-wrap">
     <table>
       <thead>
@@ -2444,6 +2444,39 @@ export const App = {
   },
 
   // Admin Methods
+  openAdmNewClientModal(){
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal" style="max-width:460px">
+        <div class="modal-head"><h3 class="modal-title">＋ Novo Cliente</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <form id="admClientFrm">
+          <div class="fg"><label class="flabel">Nome *</label><input type="text" name="name" class="fc" placeholder="Ex: João da Silva" required></div>
+          <div class="fg"><label class="flabel">E-mail ou Telefone *</label><input type="text" name="emailOrPhone" class="fc" placeholder="Digite o e-mail ou telefone do cliente" required></div>
+          <div class="fg"><label class="flabel">Senha para o cliente *</label><input type="password" name="pw" class="fc" minlength="6" placeholder="Mínimo 6 caracteres" required></div>
+          <div style="font-size:.75rem;color:var(--text3);margin:-6px 0 16px">O cliente usará esse e-mail/telefone e senha para acessar o app da barbearia.</div>
+          <button type="submit" class="btn btn-primary w-full" id="btnAdmClientSave">Cadastrar Cliente</button>
+        </form>
+      </div>
+    </div>`;
+
+    document.getElementById('admClientFrm').onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const btn = document.getElementById('btnAdmClientSave');
+      btn.disabled = true; btn.textContent = 'Cadastrando...';
+      try {
+        await Auth.registerByAdmin({ name: fd.get('name'), emailOrPhone: fd.get('emailOrPhone'), pw: fd.get('pw'), role: 'customer' });
+        _tenantUsers = await DB.loadTenantUsers();
+        T.ok('Cliente cadastrado com sucesso!');
+        App.closeModal();
+        App._renderInPlace();
+      } catch(ex) {
+        T.err(ex.message);
+        btn.disabled = false; btn.textContent = 'Cadastrar Cliente';
+      }
+    };
+  },
+
   openAdmBkModal(){
     const svcs = DB.services();
     const pros = DB.pros();

@@ -1,4 +1,4 @@
-import { auth, db, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, verifyBeforeUpdateEmail, updatePassword, query, collection, where, getDocs } from './firebase-config.js';
+import { auth, db, firebaseConfig, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, googleProvider, signInWithPopup, verifyBeforeUpdateEmail, updatePassword, query, collection, where, getDocs } from './firebase-config.js';
 import { DB } from './db.js';
 
 // Helper functions for phone/email handling
@@ -158,6 +158,53 @@ export const Auth = {
       if (e.code === 'auth/invalid-email') throw new Error('E-mail inválido.');
       throw new Error('Erro ao criar conta: ' + e.message);
     }
+  },
+
+  // Cria um cliente pelo administrador sem trocar a sessão atual (via REST API)
+  async registerByAdmin({ name, emailOrPhone, pw, role = 'customer' }) {
+    const tId = DB.getBarbeariaId();
+    if (!tId) throw new Error('Barbearia não identificada.');
+
+    let email = emailOrPhone;
+    let phone = '';
+
+    if (isPhoneNumber(emailOrPhone)) {
+      phone = normalizePhone(emailOrPhone);
+      email = generateDummyEmail(phone);
+      const q = query(collection(db, 'users'), where('phone', '==', phone));
+      const s = await getDocs(q);
+      if (!s.empty) throw new Error('Este telefone já está cadastrado.');
+    } else {
+      email = emailOrPhone.toLowerCase().trim();
+      const q = query(collection(db, 'users'), where('email', '==', email));
+      const s = await getDocs(q);
+      if (!s.empty) throw new Error('Este e-mail já está cadastrado.');
+    }
+
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${firebaseConfig.apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pw, returnSecureToken: true })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (data.error?.message === 'EMAIL_EXISTS') throw new Error('Este e-mail já está cadastrado.');
+      if (data.error?.message === 'WEAK_PASSWORD') throw new Error('A senha deve ter pelo menos 6 caracteres.');
+      throw new Error('Erro ao criar cliente: ' + (data.error?.message || 'erro desconhecido'));
+    }
+
+    await setDoc(doc(db, 'users', data.localId), {
+      name: name.trim(),
+      email,
+      phone,
+      role,
+      barbeariaId: tId,
+      points: 0,
+      createdAt: new Date().toISOString().split('T')[0]
+    });
+
+    return { id: data.localId, name: name.trim(), email, phone, role };
   },
 
   async logout() {
