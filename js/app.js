@@ -1316,7 +1316,7 @@ const rAdmApts = () => {
         <table>
           <thead>
             <tr>
-              <th>Cliente</th><th>Serviço</th><th>Barbeiro</th><th>Data</th><th>Hora</th><th>Status</th><th>Pagamento</th>${hasPix ? '<th>PIX</th>' : ''}<th>Ações</th>
+              <th>Cliente</th><th>Serviço</th><th>Barbeiro</th><th>Data</th><th>Hora</th><th>Status</th><th>Pagamento</th><th>Valor</th>${hasPix ? '<th>PIX</th>' : ''}<th>Ações</th>
             </tr>
           </thead>
           <tbody>${rAptRows(apts)}</tbody>
@@ -1337,9 +1337,9 @@ const rAdmApts = () => {
 };
 
 const rAptRows = (apts) => {
-  if(!apts.length) return `<tr><td colspan="9" style="text-align:center;padding:36px;color:var(--text2)">Nenhum agendamento encontrado.</td></tr>`;
-  const svcs=DB.services(), pros=DB.pros();
   const hasPix=!!(_tenantInfo?.pixConfig?.chave);
+  if(!apts.length) return `<tr><td colspan="${hasPix ? 11 : 10}" style="text-align:center;padding:36px;color:var(--text2)">Nenhum agendamento encontrado.</td></tr>`;
+  const svcs=DB.services(), pros=DB.pros();
   return apts.map(apt=>{
     const sv=svcs.find(s=>s.id===apt.serviceId), pr=pros.find(p=>p.id===apt.professionalId), usr=_tenantUsers.find(u=>u.id===apt.userId);
     const [bc,bl]=apt.status==='confirmado'?['b-success','Confirmado']:apt.status==='cancelado'?['b-danger','Cancelado']:['b-info','Concluído'];
@@ -1363,11 +1363,22 @@ const rAptRows = (apts) => {
     // Use clientName if available, otherwise use user name, otherwise show dash
     const clientName = apt.clientName || usr?.name || '—';
 
+    // Valor (com desconto quando aplicado)
+    const hasDisc = Number(apt.discount || 0) > 0;
+    const valCol = hasDisc
+      ? `<div style="line-height:1.5">
+          <span style="text-decoration:line-through;color:var(--text3);font-size:.78rem">${fmt(apt.originalPrice || apt.price)}</span>
+          <span style="font-weight:700;color:var(--gold)">${fmt(apt.price)}</span><br>
+          <span class="badge b-gold" style="font-size:.6rem;margin-top:3px">-${fmt(apt.discount)}</span>
+        </div>`
+      : `<span style="font-weight:700">${fmt(apt.price)}</span>`;
+
     return `<tr>
       <td>${esc(clientName)}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
       <td>${fmtDate(apt.date)}</td><td>${apt.time}</td>
       <td><span class="badge ${bc}">${bl}</span></td>
       <td>${payBadge}</td>
+      <td>${valCol}</td>
       ${hasPix ? `<td>${pixBadge}</td>` : ''}
       <td>
         <div style="display:flex;flex-direction:column;gap:5px">
@@ -1375,7 +1386,7 @@ const rAptRows = (apts) => {
           <div style="display:flex;gap:4px;flex-wrap:wrap">
             ${waLink ? `<a href="${waLink}" target="_blank" class="btn btn-xs" style="background:#25d366;color:#fff;gap:4px">${wsIcon} Contato</a>` : ''}
             ${apt.status!=='cancelado'?`<button class="btn btn-xs btn-danger" onclick="App.admCancel('${apt.id}')">Cancelar</button>`:''}
-            ${apt.status==='confirmado'?`<button class="btn btn-xs btn-success" onclick="App.admComplete('${apt.id}')">Concluir</button>`:''}
+            ${apt.status==='confirmado'?`<button class="btn btn-xs btn-success" onclick="App.askDiscount('${apt.id}')">Concluir</button>`:''}
             <button class="btn btn-xs" style="background:#ef4444;color:#fff" onclick="App.admDelete('${apt.id}')">Excluir</button>
             ${hasPix&&apt.pixStatus==='pendente'?`<button class="btn btn-xs" style="background:var(--warning);color:#000" onclick="App.admMarkPixPaid('${apt.id}')">✓ PIX Pago</button>`:''}
           </div>
@@ -3089,8 +3100,102 @@ export const App = {
   },
   async admComplete(id){
     await DB.updateAptStatus(id, 'concluido');
-    T.ok('Conclुído.');
+    T.ok('Concluído.');
     this._renderInPlace();
+  },
+
+  askDiscount(id){
+    const apt = DB.apts().find(a=>a.id===id);
+    if(!apt) return;
+    const sv  = DB.services().find(s=>s.id===apt.serviceId);
+    const pr  = DB.pros().find(p=>p.id===apt.professionalId);
+    const clName = apt.clientName || _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente';
+    const base = Number(apt.originalPrice || apt.price || 0);
+    this._completeAptId = id;
+
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal" style="max-width:440px">
+        <div class="modal-head"><h3 class="modal-title">✓ Concluir Atendimento</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <div style="font-size:.85rem;color:var(--text2);margin-bottom:16px">
+          <strong style="color:var(--text);font-size:.95rem">${esc(clName)}</strong><br>
+          ${esc(sv?.name||'—')} com ${esc(pr?.name||'—')} · ${fmtDate(apt.date)} às ${apt.time}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:16px">
+          <span style="font-size:.85rem;color:var(--text2)">Valor original</span>
+          <span style="font-family:var(--ft);font-weight:700">${fmt(base)}</span>
+        </div>
+        <div class="fg">
+          <label class="flabel">Tem desconto?</label>
+          <select id="discountType" class="fc" onchange="App.calcDiscount()">
+            <option value="0">Não, sem desconto</option>
+            <option value="pct">Sim — percentual (%)</option>
+            <option value="valor">Sim — valor fixo (R$)</option>
+          </select>
+        </div>
+        <div class="fg" id="discountInputWrap" style="display:none">
+          <label class="flabel" id="discountInputLabel">Percentual de desconto (%)</label>
+          <input type="number" id="discountInput" class="fc" min="0" step="0.01" placeholder="Ex: 10" oninput="App.calcDiscount()">
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:var(--r2);margin:16px 0">
+          <span style="font-size:.85rem;color:var(--text2)">Valor final</span>
+          <span id="finalPrice" style="font-family:var(--ft);font-weight:700;font-size:1.15rem;color:var(--gold)">${fmt(base)}</span>
+        </div>
+        <button class="btn btn-success w-full" id="btnConfirmComplete" onclick="App.confirmComplete('${apt.id}')">✓ Confirmar e Concluir</button>
+      </div>
+    </div>`;
+  },
+
+  calcDiscount(){
+    const id = this._completeAptId;
+    const apt = id ? DB.apts().find(a=>a.id===id) : null;
+    if(!apt) return;
+    const base = Number(apt.originalPrice || apt.price || 0);
+    const type = document.getElementById('discountType')?.value || '0';
+    const wrap = document.getElementById('discountInputWrap');
+    const input = document.getElementById('discountInput');
+    const finalEl = document.getElementById('finalPrice');
+    if(!finalEl) return;
+
+    if(type === '0'){
+      if(wrap) wrap.style.display = 'none';
+      finalEl.textContent = fmt(base);
+      return;
+    }
+    if(wrap){
+      wrap.style.display = '';
+      const lbl = document.getElementById('discountInputLabel');
+      if(lbl) lbl.textContent = type === 'pct' ? 'Percentual de desconto (%)' : 'Valor do desconto (R$)';
+    }
+    let finalPrice = base;
+    const v = parseFloat(input?.value) || 0;
+    if(type === 'pct') finalPrice = base - (base * v / 100);
+    else finalPrice = base - v;
+    finalPrice = Math.max(0, finalPrice);
+    finalEl.textContent = fmt(finalPrice);
+  },
+
+  async confirmComplete(id){
+    const apt = DB.apts().find(a=>a.id===id);
+    if(!apt) return;
+    const type = document.getElementById('discountType')?.value || '0';
+    const input = document.getElementById('discountInput');
+    let discountPct = 0, discountVal = 0;
+    if(type === 'pct') discountPct = Math.max(0, parseFloat(input?.value) || 0);
+    else if(type === 'valor') discountVal = Math.max(0, parseFloat(input?.value) || 0);
+
+    const btn = document.getElementById('btnConfirmComplete');
+    if(btn){ btn.disabled = true; btn.textContent = 'Salvando...'; }
+
+    try{
+      await DB.completeApt(id, discountPct, discountVal);
+      this.closeModal();
+      T.ok(discountPct > 0 || discountVal > 0 ? 'Concluído com desconto!' : 'Concluído!');
+      this._renderInPlace();
+    }catch(e){
+      T.err('Erro ao concluir: ' + e.message);
+      if(btn){ btn.disabled = false; btn.textContent = '✓ Confirmar e Concluir'; }
+    }
   },
   async admDelete(id){
     if(confirm('Excluir este agendamento permanentemente? Esta ação não pode ser desfeita.')){
@@ -3157,7 +3262,7 @@ export const App = {
         <h3 style="font-size:1.2rem;font-weight:700;margin-bottom:5px">${esc(clName)}</h3>
         <p style="color:var(--text2);margin-bottom:20px">${esc(sv?.name||'—')} com ${esc(pr?.name||'—')}<br>${fmtDate(apt.date)} às ${apt.time}</p>
         
-        ${!isDone ? `<button class="btn btn-success w-full" style="margin-bottom:10px" onclick="App.closeModal();App.admComplete('${apt.id}')">✓ Marcar como Concluído</button>` : `<button class="btn btn-success w-full" style="margin-bottom:10px;opacity:0.9;cursor:default" disabled>✓ Serviço Concluído</button>`}
+        ${!isDone ? `<button class="btn btn-success w-full" style="margin-bottom:10px" onclick="App.closeModal();App.askDiscount('${apt.id}')">✓ Marcar como Concluído</button>` : `<button class="btn btn-success w-full" style="margin-bottom:10px;opacity:0.9;cursor:default" disabled>✓ Serviço Concluído</button>`}
         ${apt.status !== 'cancelado' && !isDone ? `<button class="btn btn-danger w-full btn-outline" onclick="App.closeModal();App.admCancel('${apt.id}')">✕ Cancelar Agendamento</button>` : ''}
       </div>
     </div>`;

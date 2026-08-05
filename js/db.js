@@ -182,6 +182,27 @@ export const DB = {
     if (idx >= 0) cache.apts[idx].status = status;
   },
 
+  // Conclui o agendamento aplicando desconto (percentual e/ou valor fixo)
+  async completeApt(id, discountPct, discountVal) {
+    const idx = cache.apts.findIndex(a => a.id === id);
+    const apt = idx >= 0 ? cache.apts[idx] : null;
+    const base = apt ? Number(apt.originalPrice || apt.price || 0) : 0;
+    let finalPrice = base;
+    if (discountPct > 0) finalPrice = base - (base * discountPct / 100);
+    else if (discountVal > 0) finalPrice = base - discountVal;
+    finalPrice = Math.round(Math.max(0, finalPrice) * 100) / 100;
+    const discountAmount = Math.round(Math.max(0, base - finalPrice) * 100) / 100;
+    const data = {
+      status: 'concluido',
+      originalPrice: base,
+      discountPct: discountPct || 0,
+      discount: discountAmount,
+      price: finalPrice
+    };
+    await updateDoc(doc(db, 'appointments', id), data);
+    if (idx >= 0) Object.assign(cache.apts[idx], data);
+  },
+
   // Atualiza status do pagamento PIX
   async updateAptPixStatus(id, pixStatus) {
     await updateDoc(doc(db, 'appointments', id), { pixStatus });
