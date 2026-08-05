@@ -52,6 +52,24 @@ const avColor = name => {
 const esc = (str) => String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const wsIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.17-.478 1.338-.94.166-.463.166-.86.117-.94-.049-.08-.182-.133-.38-.232z"/></svg>`;
 
+const PAY_METHODS = [
+  { v:'pix',     l:'PIX',      i:'⚡' },
+  { v:'credito', l:'Crédito',  i:'💳' },
+  { v:'debito',  l:'Débito',   i:'🏧' },
+  { v:'dinheiro',l:'Dinheiro', i:'💵' },
+];
+const PAY_LABEL = v => (PAY_METHODS.find(p => p.v === v)?.l) || '—';
+const PAY_ICON = v => (PAY_METHODS.find(p => p.v === v)?.i) || '';
+const PAY_BADGE = v => {
+  switch(v){
+    case 'pix': return 'b-success';
+    case 'credito': return 'b-info';
+    case 'debito': return 'b-warning';
+    case 'dinheiro': return 'b-gold';
+    default: return 'b-grey';
+  }
+};
+
 const formatWorkingHours = (wh) => {
   if (!wh) return '';
   let res = `${wh.start || '—'} – ${wh.end || '—'}`;
@@ -1236,7 +1254,7 @@ const rAdmApts = () => {
         <table>
           <thead>
             <tr>
-              <th>Cliente</th><th>Serviço</th><th>Barbeiro</th><th>Data</th><th>Hora</th><th>Status</th>${hasPix ? '<th>PIX</th>' : ''}<th>Ações</th>
+              <th>Cliente</th><th>Serviço</th><th>Barbeiro</th><th>Data</th><th>Hora</th><th>Status</th><th>Pagamento</th>${hasPix ? '<th>PIX</th>' : ''}<th>Ações</th>
             </tr>
           </thead>
           <tbody>${rAptRows(apts)}</tbody>
@@ -1254,7 +1272,7 @@ const rAdmApts = () => {
 };
 
 const rAptRows = (apts) => {
-  if(!apts.length) return `<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--text2)">Nenhum agendamento encontrado.</td></tr>`;
+  if(!apts.length) return `<tr><td colspan="9" style="text-align:center;padding:36px;color:var(--text2)">Nenhum agendamento encontrado.</td></tr>`;
   const svcs=DB.services(), pros=DB.pros();
   const hasPix=!!(_tenantInfo?.pixConfig?.chave);
   return apts.map(apt=>{
@@ -1266,6 +1284,14 @@ const rAptRows = (apts) => {
     else if(hasPix&&apt.pixStatus==='pendente') pixBadge=`<span class="badge b-warning" style="font-size:.65rem">⏳ Aguardando PIX</span>`;
     else if(hasPix) pixBadge=`<span class="badge b-grey" style="font-size:.65rem">— Sem PIX</span>`;
 
+    // Forma de pagamento
+    const curPay = apt.payMethod || '';
+    const payBadge = curPay
+      ? `<span class="badge ${PAY_BADGE(curPay)}" style="font-size:.65rem">${PAY_ICON(curPay)} ${PAY_LABEL(curPay)}</span>`
+      : `<span class="badge b-grey" style="font-size:.65rem">— Sem registro</span>`;
+    const payBtns = PAY_METHODS.map(p=>`
+      <button class="btn btn-xs ${curPay===p.v ? 'btn-primary' : 'btn-ghost'}" onclick="App.setPayMethod('${apt.id}','${p.v}')" title="Marcar como ${p.l}">${p.i} ${p.l}</button>`).join('');
+
     const cleanPhone = (usr?.phone || '').replace(/\D/g, '');
     const waLink = cleanPhone ? `https://wa.me/55${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}` : null;
     
@@ -1276,14 +1302,20 @@ const rAptRows = (apts) => {
       <td>${esc(clientName)}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
       <td>${fmtDate(apt.date)}</td><td>${apt.time}</td>
       <td><span class="badge ${bc}">${bl}</span></td>
+      <td>${payBadge}</td>
       ${hasPix ? `<td>${pixBadge}</td>` : ''}
-      <td><div style="display:flex;gap:5px;flex-wrap:wrap">
-        ${waLink ? `<a href="${waLink}" target="_blank" class="btn btn-sm" style="background:#25d366;color:#fff;gap:5px">${wsIcon} Contato</a>` : ''}
-        ${apt.status!=='cancelado'?`<button class="btn btn-danger btn-sm" onclick="App.admCancel('${apt.id}')">Cancelar</button>`:''}
-        ${apt.status==='confirmado'?`<button class="btn btn-success btn-sm" onclick="App.admComplete('${apt.id}')">Concluir</button>`:''}
-        <button class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="App.admDelete('${apt.id}')">Excluir</button>
-        ${hasPix&&apt.pixStatus==='pendente'?`<button class="btn btn-sm" style="background:var(--warning);color:#000" onclick="App.admMarkPixPaid('${apt.id}')">✓ PIX Pago</button>`:''}
-      </div></td>
+      <td>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;gap:4px;flex-wrap:wrap">${payBtns}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            ${waLink ? `<a href="${waLink}" target="_blank" class="btn btn-xs" style="background:#25d366;color:#fff;gap:4px">${wsIcon} Contato</a>` : ''}
+            ${apt.status!=='cancelado'?`<button class="btn btn-xs btn-danger" onclick="App.admCancel('${apt.id}')">Cancelar</button>`:''}
+            ${apt.status==='confirmado'?`<button class="btn btn-xs btn-success" onclick="App.admComplete('${apt.id}')">Concluir</button>`:''}
+            <button class="btn btn-xs" style="background:#ef4444;color:#fff" onclick="App.admDelete('${apt.id}')">Excluir</button>
+            ${hasPix&&apt.pixStatus==='pendente'?`<button class="btn btn-xs" style="background:var(--warning);color:#000" onclick="App.admMarkPixPaid('${apt.id}')">✓ PIX Pago</button>`:''}
+          </div>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 };
@@ -2671,6 +2703,13 @@ export const App = {
             <div class="fg" style="margin-bottom:0"><label class="flabel">Data *</label><input type="date" name="date" class="fc" value="${today}" required></div>
             <div class="fg" style="margin-bottom:0"><label class="flabel">Horário *</label><input type="time" name="time" class="fc" step="900" required></div>
           </div>
+          <div class="fg">
+            <label class="flabel">Forma de Pagamento</label>
+            <select name="payMethod" class="fc">
+              <option value="">Selecione...</option>
+              ${PAY_METHODS.map(p=>`<option value="${p.v}">${p.i} ${p.l}</option>`).join('')}
+            </select>
+          </div>
           <button type="submit" class="btn btn-primary w-full" id="btnAdmBkSave">Salvar Agendamento</button>
         </form>
       </div>
@@ -2704,6 +2743,7 @@ export const App = {
           date: date,
           time: time,
           status: 'confirmado',
+          payMethod: fd.get('payMethod') || '',
           createdAt: new Date().toISOString(),
           price: service.price
         };
@@ -3095,6 +3135,14 @@ export const App = {
       T.ok('✅ PIX marcado como pago!');
       this._renderInPlace();
     }catch(e){ T.err('Erro ao atualizar PIX.'); }
+  },
+
+  async setPayMethod(id, method){
+    try{
+      await DB.updateAptPayment(id, method);
+      T.ok(`Forma de pagamento: ${PAY_LABEL(method)}`);
+      this._renderInPlace();
+    }catch(e){ T.err('Erro ao atualizar forma de pagamento.'); }
   },
 
   openPixModal(aptId){

@@ -188,6 +188,13 @@ export const DB = {
     const idx = cache.apts.findIndex(a => a.id === id);
     if (idx >= 0) cache.apts[idx].pixStatus = pixStatus;
   },
+
+  // Atualiza forma de pagamento (pix, credito, debito, dinheiro)
+  async updateAptPayment(id, payMethod) {
+    await updateDoc(doc(db, 'appointments', id), { payMethod });
+    const idx = cache.apts.findIndex(a => a.id === id);
+    if (idx >= 0) cache.apts[idx].payMethod = payMethod;
+  },
   async deleteApt(id) {
     await deleteDoc(doc(db, 'appointments', id));
     const idx = cache.apts.findIndex(a => a.id === id);

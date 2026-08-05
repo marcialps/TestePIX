@@ -132,6 +132,7 @@ input,select,textarea,button{font-family:var(--fb)}
 .btn-success{background:var(--success);color:#fff}
 .btn-success:hover{background:#16a34a}
 .btn-sm{padding:5px 13px;font-size:.78rem}
+.btn-xs{padding:3px 9px;font-size:.7rem;border-radius:7px}
 .btn-lg{padding:13px 28px;font-size:.975rem;border-radius:var(--r)}
 .btn-icon{width:34px;height:34px;padding:0;border-radius:var(--r2)}
 .w-full{width:100%}
