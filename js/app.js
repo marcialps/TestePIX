@@ -194,6 +194,7 @@ const rNavbar = () => {
       {h:'admin',l:'Dashboard',i:'◈'},
       {h:'admin-services',l:'Serviços',i:'✦'},
       {h:'admin-barbers',l:'Barbeiros',i:'✂'},
+      {h:'admin-store',l:'Loja',i:'🛍️'},
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
       {h:'admin-recon',l:'Conciliação',i:'⇄'}
     ];
@@ -201,6 +202,7 @@ const rNavbar = () => {
       {h:'admin',l:'Dashboard',i:'◈'},
       {h:'admin-services',l:'Serviços',i:'✦'},
       {h:'admin-barbers',l:'Barbeiros',i:'✂'},
+      {h:'admin-store',l:'Loja',i:'🛍️'},
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
       {h:'admin-clients',l:'Clientes',i:'👥'},
       {h:'admin-reports',l:'Relatórios',i:'📊'},
@@ -223,11 +225,13 @@ const rNavbar = () => {
     desktopLinks = [
       {h:'home',l:'Início',i:'⌂'},
       {h:'booking',l:'Agendar',i:'＋'},
+      {h:'store',l:'Loja',i:'🛍️'},
       {h:'appointments',l:'Meus Agendamentos',i:'📅'}
     ];
     mobileLinks = [
       {h:'home',l:'Início',i:'⌂'},
       {h:'booking',l:'Agendar',i:'＋'},
+      {h:'store',l:'Loja',i:'🛍️'},
       {h:'appointments',l:'Meus Agendamentos',i:'📅'}
     ];
   }
@@ -437,6 +441,39 @@ const rHome = () => {
         }).join('')}
       </div>
     </section>
+  </div>
+</div>`;
+};
+
+// --- STORE (LOJA DO CLIENTE) ---
+const rStore = () => {
+  const items = DB.storeProducts();
+  return `
+<div class="page">
+  <div class="container">
+    <section style="padding:50px 0 30px;text-align:center">
+      <span class="slabel">✦ Loja</span>
+      <h1 style="font-family:var(--ft);font-size:clamp(2rem,4.5vw,2.8rem);font-weight:700;letter-spacing:1px;margin-bottom:10px">Nossa <span style="color:var(--gold)">Loja</span></h1>
+      <p style="color:var(--text2);max-width:520px;margin:0 auto">Produtos disponíveis na ${esc(_tenantInfo?.name || 'barbearia')}. Consulte a equipe para comprar.</p>
+    </section>
+    <div class="grid g3">
+      ${items.length===0 ? `<div class="empty" style="grid-column:1/-1"><div class="empty-ico">🛍️</div><div class="empty-t">Nenhum produto disponível</div><div class="empty-d">Volte em breve para conferir nossos produtos.</div></div>` : items.map(p=>{
+        const img = p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:170px;object-fit:cover;display:block">` : `<div style="height:170px;display:flex;align-items:center;justify-content:center;font-size:3rem;background:var(--bg3);color:var(--gold)">🛍️</div>`;
+        const qty = Number(p.quantity || 0);
+        const out = qty <= 0;
+        return `
+        <div class="card" style="padding:0;overflow:hidden;${out?'opacity:.55':''}">
+          ${img}
+          <div style="padding:18px">
+            <div style="font-family:var(--ft);font-size:1.05rem;font-weight:600;margin-bottom:8px">${esc(p.name)}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <span style="font-family:var(--ft);font-size:1.25rem;font-weight:700;color:var(--gold)">${fmt(p.price)}</span>
+              <span class="badge ${out?'b-grey':'b-success'}">${out?'Esgotado':`${qty} em estoque`}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
   </div>
 </div>`;
 };
@@ -929,6 +966,7 @@ const rAdmLayout = (active, content) => {
     {id:'admin',i:'◈',l:'Dashboard'},
     {id:'admin-services',i:'✦',l:'Serviços'},
     {id:'admin-barbers',i:'✂',l:'Barbeiros'},
+    {id:'admin-store',i:'🛍️',l:'Loja'},
     {id:'admin-appointments',i:'📅',l:'Agendamentos'},
     {id:'admin-clients',i:'👥',l:'Clientes'},
     {id:'admin-reports',i:'📊',l:'Relatórios'},
@@ -1177,6 +1215,38 @@ const rAdmServices = () => {
         <span class="tgold" style="font-family:var(--ft);font-size:1.2rem;font-weight:700">${fmt(s.price)}</span>
       </div>
     </div>`).join('')}
+  </div>`);
+};
+
+const rAdmStore = () => {
+  const items = DB.storeProducts();
+  return rAdmLayout('admin-store',`
+  <div class="ph">
+    <div><h1 class="ptitle">🛍️ Loja</h1><p class="psub">Cadastre os produtos vendidos na barbearia</p></div>
+    <button class="btn btn-primary" onclick="App.openStoreProductModal()">＋ Novo Produto</button>
+  </div>
+  <div class="grid g3">
+    ${items.length===0?`<div class="empty" style="grid-column:1/-1"><div class="empty-ico">🛍️</div><div class="empty-t">Nenhum produto cadastrado</div><div class="empty-d">Cadastre produtos para exibi-los na Loja dos clientes.</div></div>`:items.map(p=>{
+      const img = p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:150px;object-fit:cover;display:block">` : `<div style="height:150px;display:flex;align-items:center;justify-content:center;font-size:2.8rem;background:var(--bg3);color:var(--text3)">🛍️</div>`;
+      const qty = Number(p.quantity || 0);
+      return `
+      <div class="card" style="padding:0;overflow:hidden">
+        ${img}
+        <div style="padding:16px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px">
+            <div style="min-width:0">
+              <div style="font-family:var(--ft);font-weight:600">${esc(p.name)}</div>
+              <div style="font-size:.78rem;color:var(--text2);margin-top:3px">${fmt(p.price)}</div>
+            </div>
+            <span class="badge ${qty<=0?'b-danger':'b-success'}" style="flex-shrink:0">${qty<=0?'Sem estoque':`${qty} un`}</span>
+          </div>
+          <div style="display:flex;gap:5px">
+            <button class="btn btn-ghost btn-sm" onclick="App.openStoreProductModal('${p.id}')">✎ Editar</button>
+            <button class="btn btn-danger btn-sm" onclick="App.delStoreProduct('${p.id}')">✕ Excluir</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
   </div>`);
 };
 
@@ -2116,21 +2186,24 @@ export const App = {
           await Promise.all([
             DB.loadServices(),
             DB.loadPros(),
-            DB.loadApts()
+            DB.loadApts(),
+            DB.loadStore()
           ]);
           _tenantUsers = await DB.loadTenantUsers();
         } else if(isBarber){
           await Promise.all([
             DB.loadServices(),
             DB.loadPros(),
-            DB.loadApts()
+            DB.loadApts(),
+            DB.loadStore()
           ]);
           _tenantUsers = await DB.loadTenantUsers();
         } else {
           await Promise.all([
             DB.loadServices(),
             DB.loadPros(),
-            DB.loadUserApts(Auth.cur.id)
+            DB.loadUserApts(Auth.cur.id),
+            DB.loadStore()
           ]);
         }
       }
@@ -2140,12 +2213,14 @@ export const App = {
     let content = '';
     if(hash==='home') content=rHome();
     else if(hash==='booking') content=rBooking();
+    else if(hash==='store') content=rStore();
     else if(hash==='appointments') content=rAppointments();
     else if(hash==='barber-schedule') content=rBarberSchedule();
     else if(hash==='barber-earnings') content=rBarberEarnings();
     else if(hash==='barber-clients') content=rBarberClients();
     else if(hash==='admin') content=rAdmDash();
     else if(hash==='admin-services') content=rAdmServices();
+    else if(hash==='admin-store') content=rAdmStore();
     else if(hash==='admin-barbers') content=rAdmBarbers();
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
@@ -2191,12 +2266,14 @@ export const App = {
     let content = '';
     if(hash==='home') content=rHome();
     else if(hash==='booking') content=rBooking();
+    else if(hash==='store') content=rStore();
     else if(hash==='appointments') content=rAppointments();
     else if(hash==='barber-schedule') content=rBarberSchedule();
     else if(hash==='barber-earnings') content=rBarberEarnings();
     else if(hash==='barber-clients') content=rBarberClients();
     else if(hash==='admin') content=rAdmDash();
     else if(hash==='admin-services') content=rAdmServices();
+    else if(hash==='admin-store') content=rAdmStore();
     else if(hash==='admin-barbers') content=rAdmBarbers();
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
@@ -2969,6 +3046,104 @@ export const App = {
       await DB.deletePro(id);
       T.ok('Barbeiro excluído.');
       // deletePro já recarrega pros no cache
+      this._renderInPlace();
+    }
+  },
+
+  // --- Loja (Produtos) ---
+  openStoreProductModal(id=null){
+    const p=id?DB.storeProducts().find(x=>x.id===id):null;
+    let currentImage = p?.image || '';
+
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal">
+        <div class="modal-head"><h3 class="modal-title">${p?'Editar Produto':'Novo Produto'}</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <form id="storeFrm">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:20px">
+            <div id="storeImgPreview" style="width:130px;height:130px;border-radius:14px;border:1px solid var(--border2);background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:2.4rem;color:var(--text3);${currentImage?`background-image:url(${currentImage});background-size:cover;background-position:center;`:''}">
+              ${currentImage ? '' : '🛍️'}
+            </div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn btn-ghost btn-sm" id="btnUploadImg">📁 Carregar imagem</button>
+              <button type="button" class="btn btn-danger btn-sm" id="btnRemoveImg" style="${currentImage?'':'display:none'}">✕ Remover</button>
+            </div>
+            <input type="file" id="storeImgFile" accept="image/*" style="display:none">
+            <div style="font-size:.72rem;color:var(--text3);text-align:center">A imagem é opcional. Se não carregar, um ícone será exibido no lugar.</div>
+          </div>
+          <div class="fg"><label class="flabel">Nome do produto *</label><input type="text" name="name" class="fc" value="${esc(p?.name||'')}" placeholder="Ex: Pomada modeladora" required></div>
+          <div class="fg"><label class="flabel">Valor (R$) *</label><input type="number" name="price" class="fc" value="${p?.price||''}" min="0" step="0.01" placeholder="0,00" required></div>
+          <div class="fg"><label class="flabel">Quantidade em estoque *</label><input type="number" name="quantity" class="fc" value="${p?.quantity||''}" min="0" step="1" placeholder="0" required></div>
+          <button type="submit" class="btn btn-primary w-full">${p?'Salvar':'Cadastrar Produto'}</button>
+        </form>
+      </div>
+    </div>`;
+
+    const previewEl = document.getElementById('storeImgPreview');
+    const uploadBtn = document.getElementById('btnUploadImg');
+    const removeBtn = document.getElementById('btnRemoveImg');
+    const fileInput = document.getElementById('storeImgFile');
+
+    const resizeImage = (img) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 400;
+      const ctx = canvas.getContext('2d');
+      const w = img.width, h = img.height;
+      const size = Math.min(w, h);
+      const sx = (w - size) / 2, sy = (h - size) / 2;
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, 400, 400);
+      return canvas.toDataURL('image/jpeg', 0.82);
+    };
+
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          currentImage = resizeImage(img);
+          previewEl.style.backgroundImage = `url(${currentImage})`;
+          previewEl.style.backgroundSize = 'cover';
+          previewEl.style.backgroundPosition = 'center';
+          previewEl.innerHTML = '';
+          removeBtn.style.display = 'inline-flex';
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    uploadBtn.onclick = () => fileInput.click();
+
+    removeBtn.onclick = () => {
+      currentImage = '';
+      previewEl.style.backgroundImage = 'none';
+      previewEl.innerHTML = '🛍️';
+      removeBtn.style.display = 'none';
+      fileInput.value = '';
+    };
+
+    document.getElementById('storeFrm').onsubmit = async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = {
+        name: fd.get('name'),
+        price: +fd.get('price'),
+        quantity: +fd.get('quantity'),
+        image: currentImage
+      };
+      if(p) data.id = p.id;
+      await DB.saveStoreProduct(data);
+      App.closeModal(); T.ok(p?'Produto atualizado!':'Produto cadastrado!'); this._renderInPlace();
+    };
+  },
+
+  async delStoreProduct(id){
+    if(confirm('Excluir este produto?')){
+      await DB.deleteStoreProduct(id);
+      T.ok('Produto excluído.');
       this._renderInPlace();
     }
   },
