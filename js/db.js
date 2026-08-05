@@ -7,24 +7,22 @@ let currentBarbeariaId = null;
 let cache = {
   services: [],
   pros: [],
-  apts: [],
-  store: []
+  apts: []
 };
 
 // Flags de controle de cache — evitam recarregar dados já carregados
 let _cacheLoaded = {
   services: false,
   pros: false,
-  apts: false,
-  store: false
+  apts: false
 };
 
 export const DB = {
   setBarbeariaId(id) {
     // Ao trocar de barbearia, invalida o cache anterior
     if (id !== currentBarbeariaId) {
-      cache = { services: [], pros: [], apts: [], store: [] };
-      _cacheLoaded = { services: false, pros: false, apts: false, store: false };
+      cache = { services: [], pros: [], apts: [] };
+      _cacheLoaded = { services: false, pros: false, apts: false };
     }
     currentBarbeariaId = id;
   },
@@ -33,15 +31,15 @@ export const DB = {
   /** Retorna true se os dados principais já foram carregados nesta sessão */
   hasCache(isAdmin = false) {
     if (isAdmin) {
-      return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts && _cacheLoaded.store;
+      return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts;
     }
-    return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts && _cacheLoaded.store;
+    return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts;
   },
 
   /** Invalida o cache forçando recarga na próxima navegação */
   invalidateCache(keys = null) {
     if (!keys) {
-      _cacheLoaded = { services: false, pros: false, apts: false, store: false };
+      _cacheLoaded = { services: false, pros: false, apts: false };
     } else {
       keys.forEach(k => { if (k in _cacheLoaded) _cacheLoaded[k] = false; });
     }
@@ -149,33 +147,6 @@ export const DB = {
   },
 
   // ==============================
-  // LOJA (PRODUTOS)
-  // ==============================
-  async loadStore() {
-    if (!currentBarbeariaId) return [];
-    const q = query(collection(db, 'store'), where('barbeariaId', '==', currentBarbeariaId));
-    const snap = await getDocs(q);
-    cache.store = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    _cacheLoaded.store = true;
-    return cache.store;
-  },
-  storeProducts() { return cache.store; },
-  async saveStoreProduct(data) {
-    if (data.id) {
-      const id = data.id;
-      delete data.id;
-      await updateDoc(doc(db, 'store', id), data);
-    } else {
-      await addDoc(collection(db, 'store'), { ...data, barbeariaId: currentBarbeariaId });
-    }
-    await this.loadStore();
-  },
-  async deleteStoreProduct(id) {
-    await deleteDoc(doc(db, 'store', id));
-    await this.loadStore();
-  },
-
-  // ==============================
   // AGENDAMENTOS
   // ==============================
   async loadApts() {
@@ -216,13 +187,6 @@ export const DB = {
     await updateDoc(doc(db, 'appointments', id), { pixStatus });
     const idx = cache.apts.findIndex(a => a.id === id);
     if (idx >= 0) cache.apts[idx].pixStatus = pixStatus;
-  },
-
-  // Atualiza forma de pagamento do atendimento
-  async updateAptPayment(id, paymentMethod) {
-    await updateDoc(doc(db, 'appointments', id), { paymentMethod });
-    const idx = cache.apts.findIndex(a => a.id === id);
-    if (idx >= 0) cache.apts[idx].paymentMethod = paymentMethod;
   },
   async deleteApt(id) {
     await deleteDoc(doc(db, 'appointments', id));
