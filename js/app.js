@@ -1236,10 +1236,72 @@ const rAdmBarbers = () => {
 const rAdmApts = () => {
   const all = [...DB.apts()].sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
   const hasPix = !!(_tenantInfo?.pixConfig?.chave);
+  const pros = DB.pros();
 
-  const emEspera = all.filter(a => a.status === 'confirmado');
-  const concluidos = all.filter(a => a.status === 'concluido');
-  const cancelados = all.filter(a => a.status === 'cancelado');
+  const period = App._aptPeriod || 'todo';
+  const cd = App._aptDate || new Date();
+  const barberId = App._aptBarber || '';
+
+  const p2 = n => n.toString().padStart(2, '0');
+  const dStr = d => `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+
+  let filtered = all;
+  if(period === 'dia') {
+    const ds = dStr(cd);
+    filtered = filtered.filter(a => a.date === ds);
+  } else if(period === 'semana') {
+    const start = new Date(cd);
+    start.setDate(cd.getDate() - cd.getDay());
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    const s = dStr(start), e = dStr(end);
+    filtered = filtered.filter(a => a.date >= s && a.date <= e);
+  } else if(period === 'mes') {
+    const ym = `${cd.getFullYear()}-${p2(cd.getMonth()+1)}`;
+    filtered = filtered.filter(a => a.date.startsWith(ym));
+  }
+
+  if(barberId) {
+    filtered = filtered.filter(a => a.professionalId === barberId);
+  }
+
+  const emEspera = filtered.filter(a => a.status === 'confirmado');
+  const concluidos = filtered.filter(a => a.status === 'concluido');
+  const cancelados = filtered.filter(a => a.status === 'cancelado');
+
+  const dNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  let periodLabel = 'Todo Intervalo';
+  if(period === 'dia') {
+    periodLabel = `${dNames[cd.getDay()]}, ${p2(cd.getDate())}/${p2(cd.getMonth()+1)}/${cd.getFullYear()}`;
+  } else if(period === 'semana') {
+    const start = new Date(cd);
+    start.setDate(cd.getDate() - cd.getDay());
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    periodLabel = `${p2(start.getDate())}/${p2(start.getMonth()+1)} - ${p2(end.getDate())}/${p2(end.getMonth()+1)}/${end.getFullYear()}`;
+  } else if(period === 'mes') {
+    periodLabel = `${MONTHS[cd.getMonth()]} ${cd.getFullYear()}`;
+  }
+
+  const filterBar = `
+  <div class="apt-filter-bar">
+    <div class="apt-filter-period">
+      <button class="btn btn-ghost" ${period === 'todo' ? 'disabled style="opacity:.3"' : ''} onclick="App.navAptDate(-1)">◀</button>
+      <span class="apt-filter-title">${periodLabel}</span>
+      <button class="btn btn-ghost" ${period === 'todo' ? 'disabled style="opacity:.3"' : ''} onclick="App.navAptDate(1)">▶</button>
+    </div>
+    <div class="apt-filter-seg">
+      <button class="btn btn-sm ${period==='dia'?'btn-primary':'btn-ghost'}" onclick="App.setAptPeriod('dia')">Dia</button>
+      <button class="btn btn-sm ${period==='semana'?'btn-primary':'btn-ghost'}" onclick="App.setAptPeriod('semana')">Semana</button>
+      <button class="btn btn-sm ${period==='mes'?'btn-primary':'btn-ghost'}" onclick="App.setAptPeriod('mes')">Mês</button>
+      <button class="btn btn-sm ${period==='todo'?'btn-primary':'btn-ghost'}" onclick="App.setAptPeriod('todo')">Todo Intervalo</button>
+    </div>
+    <select class="fc apt-filter-barber" onchange="App.setAptBarber(this.value)" title="Filtrar por barbeiro">
+      <option value="">Todos os barbeiros</option>
+      ${pros.map(p => `<option value="${p.id}" ${barberId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+    </select>
+  </div>`;
 
   const renderSection = (title, apts, color, icon) => `
     <div style="margin-bottom: 40px;">
@@ -1265,9 +1327,12 @@ const rAdmApts = () => {
 
   return rAdmLayout('admin-appointments', `
     <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div><button class="btn btn-primary" onclick="App.openAdmBkModal()">＋ Novo Agendamento</button></div>
-    ${renderSection('Em Espera', emEspera, '#3b82f6', '⏳')}
-    ${renderSection('Concluídos', concluidos, '#22c55e', '✅')}
-    ${renderSection('Cancelados', cancelados, '#ef4444', '✕')}
+    ${filterBar}
+    ${filtered.length === 0 ? `<div class="empty"><div class="empty-ico">📅</div><div class="empty-t">Nenhum agendamento no período</div><div class="empty-d">Ajuste os filtros de período ou barbeiro.</div></div>` : `
+      ${renderSection('Em Espera', emEspera, '#3b82f6', '⏳')}
+      ${renderSection('Concluídos', concluidos, '#22c55e', '✅')}
+      ${renderSection('Cancelados', cancelados, '#ef4444', '✕')}
+    `}
   `);
 };
 
@@ -2103,6 +2168,9 @@ const openTenantModal = () => {
 export const App = {
   _dashCalView: 'dia',
   _dashCalDate: new Date(),
+  _aptPeriod: 'todo',
+  _aptDate: new Date(),
+  _aptBarber: '',
   async render(){
     const hash=window.location.hash.slice(1).split('?')[0]||'home';
     const app=document.getElementById('app');
@@ -3034,6 +3102,27 @@ export const App = {
 
   setDashCalView(view) {
     this._dashCalView = view;
+    this._renderInPlace();
+  },
+
+  setAptPeriod(period) {
+    this._aptPeriod = period;
+    this._aptDate = new Date();
+    this._renderInPlace();
+  },
+
+  navAptDate(dir) {
+    const d = new Date(this._aptDate || new Date());
+    const p = this._aptPeriod || 'todo';
+    if(p === 'dia') d.setDate(d.getDate() + dir);
+    else if(p === 'semana') d.setDate(d.getDate() + (dir * 7));
+    else if(p === 'mes') d.setMonth(d.getMonth() + dir);
+    this._aptDate = d;
+    this._renderInPlace();
+  },
+
+  setAptBarber(id) {
+    this._aptBarber = id;
     this._renderInPlace();
   },
   
