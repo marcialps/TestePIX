@@ -67,6 +67,40 @@ const renderTenantLogo = (alt, cls) => {
 };
 
 /* =====================================================
+   PAGAMENTO & STATUS
+===================================================== */
+const PAY_METHODS = [
+  { v: 'pix',     l: 'PIX',       i: '⚡' },
+  { v: 'credito', l: 'Crédito',   i: '💳' },
+  { v: 'debito',  l: 'Débito',    i: '💳' },
+  { v: 'dinheiro',l: 'Dinheiro',  i: '💵' }
+];
+const payInfo = m => {
+  const map = {
+    pix:      { i: '⚡', l: 'PIX',       b: 'b-warning' },
+    credito:  { i: '💳', l: 'Crédito',   b: 'b-info' },
+    debito:   { i: '💳', l: 'Débito',    b: 'b-gold' },
+    dinheiro: { i: '💵', l: 'Dinheiro',  b: 'b-success' }
+  };
+  return map[m] || null;
+};
+const payBadge = (apt) => {
+  const p = payInfo(apt?.paymentMethod);
+  return p ? `<span class="badge ${p.b}" style="font-size:.65rem">${p.i} ${p.l}</span>` : `<span class="badge b-grey" style="font-size:.65rem">— Pagto</span>`;
+};
+const normStatus = a => {
+  const s = String(a?.status || '').toLowerCase().replace('í', 'i');
+  if (s.includes('cancel')) return 'cancelado';
+  if (s.includes('conclu')) return 'concluido';
+  return 'confirmado';
+};
+const statusBadge = a => {
+  const s = normStatus(a);
+  return s === 'confirmado' ? ['b-success', 'Confirmado'] : s === 'cancelado' ? ['b-danger', 'Cancelado'] : ['b-info', 'Concluído'];
+};
+const statusLabel = a => statusBadge(a)[1];
+
+/* =====================================================
    TOAST
    ===================================================== */
 const T = {
@@ -1285,77 +1319,287 @@ const rAdmBarbers = () => {
   </div>`);
 };
 
-const rAdmApts = () => {
-  const all = [...DB.apts()].sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
-  const hasPix = !!(_tenantInfo?.pixConfig?.chave);
-
-  const emEspera = all.filter(a => a.status === 'confirmado');
-  const concluidos = all.filter(a => a.status === 'concluido');
-  const cancelados = all.filter(a => a.status === 'cancelado');
-
-  const renderSection = (title, apts, color, icon) => `
-    <div style="margin-bottom: 40px;">
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 18px;">
-        <div style="width: 40px; height: 40px; background: ${color}15; border: 1px solid ${color}33; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">${icon}</div>
-        <div>
-          <h2 style="font-family: var(--ft); font-size: 1.25rem; letter-spacing: 0.5px;">${title}</h2>
-          <div style="font-size: 0.75rem; color: var(--text2); font-weight: 600; text-transform: uppercase;">${apts.length} agendamento${apts.length !== 1 ? 's' : ''}</div>
-        </div>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th><th>Serviço</th><th>Barbeiro</th><th>Data</th><th>Hora</th><th>Status</th>${hasPix ? '<th>PIX</th>' : ''}<th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>${rAptRows(apts)}</tbody>
-        </table>
-      </div>
-    </div>
-  `;
-
-  return rAdmLayout('admin-appointments', `
-    <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize e controle os horários da sua barbearia</p></div><button class="btn btn-primary" onclick="App.openAdmBkModal()">＋ Novo Agendamento</button></div>
-    ${renderSection('Em Espera', emEspera, '#3b82f6', '⏳')}
-    ${renderSection('Concluídos', concluidos, '#22c55e', '✅')}
-    ${renderSection('Cancelados', cancelados, '#ef4444', '✕')}
-  `);
+const aptViewRange = () => {
+  const d = App._aptDate || new Date();
+  const p2 = n => String(n).padStart(2, '0');
+  const ds = x => `${x.getFullYear()}-${p2(x.getMonth()+1)}-${p2(x.getDate())}`;
+  const view = App._aptView || 'dia';
+  if (view === 'dia') { const s = ds(d); return { from: s, to: s }; }
+  if (view === 'semana') {
+    const start = new Date(d); start.setDate(d.getDate() - d.getDay());
+    const end = new Date(start); end.setDate(start.getDate() + 6);
+    return { from: ds(start), to: ds(end) };
+  }
+  if (view === 'mes') {
+    const start = new Date(d.getFullYear(), d.getMonth(), 1);
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return { from: ds(start), to: ds(end) };
+  }
+  return { from: App._aptFrom || '', to: App._aptTo || '' };
 };
 
-const rAptRows = (apts) => {
-  if(!apts.length) return `<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--text2)">Nenhum agendamento encontrado.</td></tr>`;
-  const svcs=DB.services(), pros=DB.pros();
-  const hasPix=!!(_tenantInfo?.pixConfig?.chave);
-  return apts.map(apt=>{
-    const sv=svcs.find(s=>s.id===apt.serviceId), pr=pros.find(p=>p.id===apt.professionalId), usr=_tenantUsers.find(u=>u.id===apt.userId);
-    const [bc,bl]=apt.status==='confirmado'?['b-success','Confirmado']:apt.status==='cancelado'?['b-danger','Cancelado']:['b-info','Concluído'];
-    // PIX badge
-    let pixBadge='';
-    if(hasPix&&apt.pixStatus==='pago') pixBadge=`<span class="badge b-success" style="font-size:.65rem">✅ PIX Pago</span>`;
-    else if(hasPix&&apt.pixStatus==='pendente') pixBadge=`<span class="badge b-warning" style="font-size:.65rem">⏳ Aguardando PIX</span>`;
-    else if(hasPix) pixBadge=`<span class="badge b-grey" style="font-size:.65rem">— Sem PIX</span>`;
+const filterApts = () => {
+  let list = DB.apts().filter(a => {
+    if (App._aptBarber && a.professionalId !== App._aptBarber) return false;
+    if (App._aptStatus && normStatus(a) !== App._aptStatus) return false;
+    if (App._aptPay) {
+      if (App._aptPay === 'none') { if (a.paymentMethod) return false; }
+      else if ((a.paymentMethod || '') !== App._aptPay) return false;
+    }
+    if (App._aptQuery) {
+      const q = App._aptQuery.toLowerCase();
+      const sv = DB.services().find(s => s.id === a.serviceId);
+      const pr = DB.pros().find(p => p.id === a.professionalId);
+      const cl = a.clientName || _tenantUsers.find(u => u.id === a.userId)?.name || '';
+      if (!(`${cl} ${sv?.name || ''} ${pr?.name || ''}`.toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
+  const r = aptViewRange();
+  if (r.from) list = list.filter(a => a.date >= r.from);
+  if (r.to) list = list.filter(a => a.date <= r.to);
+  return list.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(a.time));
+};
 
-    const cleanPhone = (usr?.phone || '').replace(/\D/g, '');
-    const waLink = cleanPhone ? `https://wa.me/55${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}` : null;
-    
-    // Use clientName if available, otherwise use user name, otherwise show dash
-    const clientName = apt.clientName || usr?.name || '—';
+const rAptStats = (list) => {
+  const revenue = list.filter(a => normStatus(a) !== 'cancelado').reduce((s, a) => s + Number(a.price || 0), 0);
+  const conf = list.filter(a => normStatus(a) === 'confirmado').length;
+  const done = list.filter(a => normStatus(a) === 'concluido').length;
+  const canc = list.filter(a => normStatus(a) === 'cancelado').length;
+  const payCounts = PAY_METHODS.map(m => ({ m, n: list.filter(a => a.paymentMethod === m.v).length }));
+  return `
+  <div class="stats-grid" style="margin-bottom:18px">
+    <div class="stat-card"><div class="scl">Agendamentos</div><div class="scv">${list.length}</div><div style="font-size:.7rem;color:var(--text3);margin-top:4px">no período</div></div>
+    <div class="stat-card"><div class="scl">Receita</div><div class="scv" style="color:var(--success)">${fmt(revenue)}</div><div style="font-size:.7rem;color:var(--text3);margin-top:4px">bruta (sem cancelados)</div></div>
+    <div class="stat-card"><div class="scl">Confirmados</div><div class="scv" style="color:var(--info)">${conf}</div></div>
+    <div class="stat-card"><div class="scl">Concluídos</div><div class="scv" style="color:var(--success)">${done}</div></div>
+    <div class="stat-card"><div class="scl">Cancelados</div><div class="scv" style="color:var(--danger)">${canc}</div></div>
+  </div>
+  <div class="pay-strip">
+    ${payCounts.map(({ m, n }) => `<span class="pay-chip" style="border-left-color:${payInfo(m.v).b === 'b-warning' ? 'var(--warning)' : payInfo(m.v).b === 'b-info' ? 'var(--info)' : payInfo(m.v).b === 'b-gold' ? 'var(--gold)' : 'var(--success)'}">${m.i} ${m.l}: <strong>${n}</strong></span>`).join('')}
+  </div>`;
+};
 
-    return `<tr>
-      <td>${esc(clientName)}</td><td>${esc(sv?.name||'—')}</td><td>${esc(pr?.name||'—')}</td>
-      <td>${fmtDate(apt.date)}</td><td>${apt.time}</td>
-      <td><span class="badge ${bc}">${bl}</span></td>
-      ${hasPix ? `<td>${pixBadge}</td>` : ''}
-      <td><div style="display:flex;gap:5px;flex-wrap:wrap">
-        ${waLink ? `<a href="${waLink}" target="_blank" class="btn btn-sm" style="background:#25d366;color:#fff;gap:5px">${wsIcon} Contato</a>` : ''}
-        ${apt.status!=='cancelado'?`<button class="btn btn-danger btn-sm" onclick="App.admCancel('${apt.id}')">Cancelar</button>`:''}
-        ${apt.status==='confirmado'?`<button class="btn btn-success btn-sm" onclick="App.admComplete('${apt.id}')">Concluir</button>`:''}
-        <button class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="App.admDelete('${apt.id}')">Excluir</button>
-        ${hasPix&&apt.pixStatus==='pendente'?`<button class="btn btn-sm" style="background:var(--warning);color:#000" onclick="App.admMarkPixPaid('${apt.id}')">✓ PIX Pago</button>`:''}
-      </div></td>
-    </tr>`;
+const rAptToolbar = (view) => {
+  const d = App._aptDate || new Date();
+  const p2 = n => String(n).padStart(2, '0');
+  const dNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const M = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  let label = '';
+  if (view === 'dia') label = `${dNames[d.getDay()]}, ${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;
+  else if (view === 'semana') {
+    const s = new Date(d); s.setDate(d.getDate() - d.getDay());
+    const e = new Date(s); e.setDate(s.getDate() + 6);
+    label = `${p2(s.getDate())}/${p2(s.getMonth()+1)} – ${p2(e.getDate())}/${p2(e.getMonth()+1)}/${e.getFullYear()}`;
+  } else if (view === 'mes') label = `${M[d.getMonth()]} ${d.getFullYear()}`;
+  else label = (App._aptFrom || App._aptTo) ? `${fmtDate(App._aptFrom || '')} – ${fmtDate(App._aptTo || '')}` : 'Todo o período';
+
+  const pros = DB.pros();
+  return `
+  <div class="apt-toolbar">
+    <div class="apt-view-seg">
+      ${[['dia','Dia'],['semana','Semana'],['mes','Mês'],['tudo','Tudo']].map(([v, l]) => `<button class="btn btn-sm ${view === v ? 'btn-primary' : 'btn-ghost'}" onclick="App.setAptView('${v}')">${l}</button>`).join('')}
+    </div>
+    ${view !== 'tudo' ? `
+    <div class="apt-nav">
+      <button class="btn btn-ghost" onclick="App.navApt(-1)" title="Anterior">◀</button>
+      <span class="apt-nav-label">${label}</span>
+      <button class="btn btn-ghost" onclick="App.navApt(1)" title="Próximo">▶</button>
+      <button class="btn btn-ghost btn-sm" onclick="App.goAptToday()">Hoje</button>
+    </div>` : `
+    <div class="apt-nav">
+      <input type="date" class="fc apt-range" value="${App._aptFrom || ''}" onchange="App.aptSetRange('from', this.value)">
+      <span class="apt-range-sep">até</span>
+      <input type="date" class="fc apt-range" value="${App._aptTo || ''}" onchange="App.aptSetRange('to', this.value)">
+      ${(App._aptFrom || App._aptTo) ? `<button class="btn btn-ghost btn-sm" onclick="App.aptClearRange()">✕ Limpar</button>` : ''}
+    </div>`}
+    <div class="apt-filters">
+      <select class="fc apt-f" onchange="App.setAptBarber(this.value)">
+        <option value="">Todos barbeiros</option>
+        ${pros.map(p => `<option value="${p.id}" ${App._aptBarber === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+      </select>
+      <select class="fc apt-f" onchange="App.setAptStatus(this.value)">
+        <option value="">Todos status</option>
+        <option value="confirmado" ${App._aptStatus === 'confirmado' ? 'selected' : ''}>Confirmados</option>
+        <option value="concluido" ${App._aptStatus === 'concluido' ? 'selected' : ''}>Concluídos</option>
+        <option value="cancelado" ${App._aptStatus === 'cancelado' ? 'selected' : ''}>Cancelados</option>
+      </select>
+      <select class="fc apt-f" onchange="App.setAptPay(this.value)">
+        <option value="">Todos pagamentos</option>
+        ${PAY_METHODS.map(m => `<option value="${m.v}" ${App._aptPay === m.v ? 'selected' : ''}>${m.l}</option>`).join('')}
+        <option value="none" ${App._aptPay === 'none' ? 'selected' : ''}>Sem pagamento</option>
+      </select>
+      <input type="text" class="fc apt-search" placeholder="🔍 Buscar..." value="${esc(App._aptQuery || '')}" onchange="App.setAptQuery(this.value)">
+    </div>
+  </div>`;
+};
+
+const rAptTimeline = (d, list) => {
+  const view = App._aptView || 'dia';
+  const days = [];
+  if (view === 'dia') days.push(new Date(d));
+  else {
+    const s = new Date(d); s.setDate(d.getDate() - d.getDay());
+    for (let i = 0; i < 7; i++) { const nd = new Date(s); nd.setDate(s.getDate() + i); days.push(nd); }
+  }
+  const dNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const p2 = n => String(n).padStart(2, '0');
+  const dStr = x => `${x.getFullYear()}-${p2(x.getMonth()+1)}-${p2(x.getDate())}`;
+  const today = todayStr();
+  const startHour = 7, endHour = 22;
+  const hours = []; for (let i = startHour; i <= endHour; i++) hours.push(i);
+  const svcs = DB.services(), pros = DB.pros();
+
+  const colHtml = days.map(day => {
+    const ds = dStr(day);
+    const dayApts = list.filter(a => a.date === ds).map(a => {
+      const [h, m] = a.time.split(':').map(Number);
+      if (h < startHour || h > endHour) return null;
+      const sv = svcs.find(s => s.id === a.serviceId);
+      const dur = sv ? Number(sv.duration) : 30;
+      const sm = h * 60 + m;
+      return { ...a, startMinutes: sm, endMinutes: sm + dur, top: (h - startHour) * 90 + (m * 1.5), height: dur * 1.5 };
+    }).filter(Boolean);
+
+    const groups = [];
+    dayApts.forEach(apt => {
+      let added = false;
+      for (const g of groups) {
+        if (g.some(x => !(apt.endMinutes <= x.startMinutes || apt.startMinutes >= x.endMinutes))) { g.push(apt); added = true; break; }
+      }
+      if (!added) groups.push([apt]);
+    });
+    groups.forEach(g => { const c = g.length; g.forEach((apt, i) => { apt.left = (i / c) * 100; apt.width = 100 / c; }); });
+
+    let evs = '';
+    dayApts.forEach(apt => {
+      const sv = svcs.find(s => s.id === apt.serviceId);
+      const pr = pros.find(p => p.id === apt.professionalId);
+      const st = normStatus(apt);
+      const color = st === 'concluido' ? '#22c55e' : st === 'cancelado' ? '#ef4444' : '#3b82f6';
+      const bg = `${color}22`;
+      const clName = apt.clientName || _tenantUsers.find(u => u.id === apt.userId)?.name || 'Cliente';
+      const pay = payInfo(apt.paymentMethod);
+      const [h, m] = apt.time.split(':').map(Number);
+      evs += `<div class="dash-cal-event" style="top:${apt.top}px;height:${apt.height}px;left:${apt.left}%;width:${apt.width}%;background:${bg};border-left-color:${color};opacity:${st === 'cancelado' ? 0.5 : 1}" onclick="App.dashAptClick('${apt.id}')">
+        <div class="dash-cal-event-title" style="color:${color}">${st === 'concluido' ? '✓ ' : ''}${esc(clName)}</div>
+        <div class="dash-cal-event-sub" style="color:${color}">${esc(sv?.name || '—')} · ${p2(h)}:${p2(m)}${pay ? ` · ${pay.i}` : ''}</div>
+      </div>`;
+    });
+
+    return `<div class="dash-cal-day-col">
+      <div class="dash-cal-grid-lines">${hours.map(() => '<div class="dash-cal-grid-line"></div>').join('')}</div>
+      ${evs}
+    </div>`;
   }).join('');
+
+  return `
+  <div class="dash-cal-wrap">
+    <div class="dash-cal-scrollable-container">
+      <div class="dash-cal-header">
+        <div class="dash-cal-header-spacer"></div>
+        <div class="dash-cal-days">
+          ${days.map(x => `<div class="dash-cal-day-header ${dStr(x) === today ? 'active' : ''}">${dNames[x.getDay()]}<br><span style="font-size:.75rem;font-weight:400">${p2(x.getDate())}/${p2(x.getMonth()+1)}</span></div>`).join('')}
+        </div>
+      </div>
+      <div class="dash-cal-body">
+        <div class="dash-cal-time-col">${hours.map(h => `<div class="dash-cal-time-cell">${p2(h)}:00</div>`).join('')}</div>
+        <div class="dash-cal-days">${colHtml}</div>
+      </div>
+    </div>
+  </div>`;
+};
+
+const rAptMonth = (d, list) => {
+  const M = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const dows = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const p2 = n => String(n).padStart(2, '0');
+  const dStr = x => `${x.getFullYear()}-${p2(x.getMonth()+1)}-${p2(x.getDate())}`;
+  const first = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+  const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const today = todayStr();
+
+  let html = `<div class="apt-month">
+    <div class="apt-month-head">
+      <button class="btn btn-ghost" onclick="App.navApt(-1)">◀</button>
+      <span class="apt-month-title">${M[d.getMonth()]} ${d.getFullYear()}</span>
+      <button class="btn btn-ghost" onclick="App.navApt(1)">▶</button>
+      <button class="btn btn-ghost btn-sm" onclick="App.goAptToday()">Hoje</button>
+    </div>
+    <div class="apt-month-grid">${dows.map(w => `<div class="apt-month-dow">${w}</div>`).join('')}`;
+  for (let i = 0; i < first; i++) html += `<div class="apt-month-cell empty"></div>`;
+  for (let day = 1; day <= days; day++) {
+    const x = new Date(d.getFullYear(), d.getMonth(), day);
+    const ds = dStr(x);
+    const dayApts = list.filter(a => a.date === ds);
+    const chips = dayApts.slice(0, 3).map(a => {
+      const st = normStatus(a);
+      const color = st === 'concluido' ? 'var(--success)' : st === 'cancelado' ? 'var(--danger)' : 'var(--info)';
+      const cl = a.clientName || _tenantUsers.find(u => u.id === a.userId)?.name || 'Cliente';
+      return `<div class="apt-month-chip" style="border-left-color:${color}" onclick="event.stopPropagation();App.dashAptClick('${a.id}')">${esc(cl)} · ${a.time}</div>`;
+    }).join('');
+    const more = dayApts.length > 3 ? `<div class="apt-month-more" onclick="event.stopPropagation();App.pickAptDay('${ds}')">+${dayApts.length - 3} mais</div>` : '';
+    html += `<div class="apt-month-cell ${ds === today ? 'today' : ''}" onclick="App.pickAptDay('${ds}')">
+      <div class="apt-month-num">${day}</div>
+      ${chips}
+      ${more}
+    </div>`;
+  }
+  html += `</div></div>`;
+  return html;
+};
+
+const rAptTable = (list) => {
+  const svcs = DB.services(), pros = DB.pros();
+  const hasPix = !!(_tenantInfo?.pixConfig?.chave);
+  return `
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th>Cliente</th><th>Serviço</th><th>Barbeiro</th><th>Data</th><th>Hora</th><th>Valor</th><th>Pagamento</th><th>Status</th><th>Ações</th>
+      </tr></thead>
+      <tbody>
+        ${list.length === 0 ? `<tr><td colspan="9" style="text-align:center;padding:36px;color:var(--text2)">Nenhum agendamento encontrado.</td></tr>` : list.map(apt => {
+          const sv = svcs.find(s => s.id === apt.serviceId), pr = pros.find(p => p.id === apt.professionalId);
+          const usr = _tenantUsers.find(u => u.id === apt.userId);
+          const clientName = apt.clientName || usr?.name || '—';
+          const [bc, bl] = statusBadge(apt);
+          const cleanPhone = (usr?.phone || '').replace(/\D/g, '');
+          const waLink = cleanPhone ? `https://wa.me/55${cleanPhone.length > 11 ? cleanPhone.slice(-11) : cleanPhone}` : null;
+          return `<tr>
+            <td><div style="display:flex;align-items:center;gap:9px"><div class="uavatar" style="flex-shrink:0">${initials(clientName)}</div><strong style="color:var(--text)">${esc(clientName)}</strong></div></td>
+            <td>${esc(sv?.name || '—')}</td>
+            <td>${esc(pr?.name || '—')}</td>
+            <td>${fmtDate(apt.date)}</td>
+            <td>${apt.time}</td>
+            <td style="font-weight:700;color:var(--gold)">${fmt(apt.price)}</td>
+            <td>${payBadge(apt)}</td>
+            <td><span class="badge ${bc}">${bl}</span></td>
+            <td><div style="display:flex;gap:5px;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-sm" onclick="App.openAptPayModal('${apt.id}')">💳 Pagto</button>
+              ${waLink ? `<a href="${waLink}" target="_blank" class="btn btn-sm" style="background:#25d366;color:#fff;gap:5px" title="Contato WhatsApp">${wsIcon}</a>` : ''}
+              ${apt.status !== 'cancelado' ? `<button class="btn btn-danger btn-sm" onclick="App.admCancel('${apt.id}')">Cancelar</button>` : ''}
+              ${normStatus(apt) === 'confirmado' ? `<button class="btn btn-success btn-sm" onclick="App.admComplete('${apt.id}')">Concluir</button>` : ''}
+              <button class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="App.admDelete('${apt.id}')">Excluir</button>
+              ${hasPix && apt.pixStatus === 'pendente' ? `<button class="btn btn-sm" style="background:var(--warning);color:#000" onclick="App.admMarkPixPaid('${apt.id}')">✓ PIX</button>` : ''}
+            </div></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+};
+
+const rAdmApts = () => {
+  const view = App._aptView || 'dia';
+  if (!App._aptDate) App._aptDate = new Date();
+  const list = filterApts();
+  return rAdmLayout('admin-appointments', `
+    <div class="ph"><div><h1 class="ptitle">Gerenciar Agendamentos</h1><p class="psub">Visualize, filtre e controle os horários da sua barbearia</p></div><button class="btn btn-primary" onclick="App.openAdmBkModal()">＋ Novo Agendamento</button></div>
+    ${rAptStats(list)}
+    ${rAptToolbar(view)}
+    ${view === 'mes' ? rAptMonth(App._aptDate, list) : view === 'tudo' ? rAptTable(list) : rAptTimeline(App._aptDate, list)}
+  `);
 };
 
 const rAdmClients = () => {
@@ -2141,6 +2385,14 @@ const openTenantModal = () => {
 export const App = {
   _dashCalView: 'dia',
   _dashCalDate: new Date(),
+  _aptView: 'dia',
+  _aptDate: new Date(),
+  _aptBarber: '',
+  _aptStatus: '',
+  _aptPay: '',
+  _aptQuery: '',
+  _aptFrom: '',
+  _aptTo: '',
   async render(){
     const hash=window.location.hash.slice(1).split('?')[0]||'home';
     const app=document.getElementById('app');
@@ -2748,6 +3000,13 @@ export const App = {
             <div class="fg" style="margin-bottom:0"><label class="flabel">Data *</label><input type="date" name="date" class="fc" value="${today}" required></div>
             <div class="fg" style="margin-bottom:0"><label class="flabel">Horário *</label><input type="time" name="time" class="fc" step="900" required></div>
           </div>
+          <div class="fg">
+            <label class="flabel">Forma de Pagamento</label>
+            <select name="paymentMethod" class="fc">
+              <option value="">Sem definição</option>
+              ${PAY_METHODS.map(m => `<option value="${m.v}">${m.i} ${m.l}</option>`).join('')}
+            </select>
+          </div>
           <button type="submit" class="btn btn-primary w-full" id="btnAdmBkSave">Salvar Agendamento</button>
         </form>
       </div>
@@ -2782,7 +3041,8 @@ export const App = {
           time: time,
           status: 'confirmado',
           createdAt: new Date().toISOString(),
-          price: service.price
+          price: service.price,
+          paymentMethod: fd.get('paymentMethod') || ''
         };
 
         await DB.addAptAndReturn(apt);
@@ -3172,6 +3432,71 @@ export const App = {
     this._renderInPlace();
   },
   
+  // --- Gerenciar Agendamentos (views / filtros / pagamento) ---
+  setAptView(view){
+    this._aptView = view;
+    if (!this._aptDate) this._aptDate = new Date();
+    this._renderInPlace();
+  },
+  navApt(dir){
+    const d = new Date(this._aptDate || new Date());
+    const v = this._aptView || 'dia';
+    if (v === 'dia') d.setDate(d.getDate() + dir);
+    else if (v === 'semana') d.setDate(d.getDate() + (dir * 7));
+    else d.setMonth(d.getMonth() + dir);
+    this._aptDate = d;
+    this._renderInPlace();
+  },
+  goAptToday(){
+    this._aptDate = new Date();
+    this._renderInPlace();
+  },
+  pickAptDay(ds){
+    this._aptDate = new Date(ds + 'T12:00:00');
+    this._aptView = 'dia';
+    this._renderInPlace();
+  },
+  setAptBarber(id){ this._aptBarber = id; this._renderInPlace(); },
+  setAptStatus(s){ this._aptStatus = s; this._renderInPlace(); },
+  setAptPay(p){ this._aptPay = p; this._renderInPlace(); },
+  setAptQuery(q){ this._aptQuery = q; this._renderInPlace(); },
+  aptSetRange(which, value){
+    if (which === 'from') this._aptFrom = value; else this._aptTo = value;
+    this._renderInPlace();
+  },
+  aptClearRange(){ this._aptFrom = ''; this._aptTo = ''; this._renderInPlace(); },
+
+  async admSetPayment(id, method){
+    try {
+      await DB.updateAptPayment(id, method);
+      T.ok('Forma de pagamento atualizada!');
+      App.closeModal();
+      this._renderInPlace();
+    } catch(e) { T.err('Erro ao atualizar pagamento.'); }
+  },
+
+  openAptPayModal(id){
+    const apt = DB.apts().find(a => a.id === id);
+    if (!apt) return;
+    const sv = DB.services().find(s => s.id === apt.serviceId);
+    const cl = apt.clientName || _tenantUsers.find(u => u.id === apt.userId)?.name || 'Cliente';
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal" style="max-width:430px">
+        <div class="modal-head"><h3 class="modal-title">💳 Forma de Pagamento</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:14px 16px;margin-bottom:18px">
+          <div style="font-weight:700;font-family:var(--ft);font-size:1rem">${esc(cl)}</div>
+          <div style="font-size:.82rem;color:var(--text2)">${esc(sv?.name || '—')} · ${fmtDate(apt.date)} às ${apt.time}</div>
+          <div style="font-size:.95rem;font-weight:700;color:var(--gold);margin-top:5px">${fmt(apt.price)}</div>
+        </div>
+        <div class="pay-options">
+          ${PAY_METHODS.map(m => `<button class="pay-opt ${apt.paymentMethod === m.v ? 'sel' : ''}" onclick="App.admSetPayment('${apt.id}','${m.v}')">${m.i} ${m.l}</button>`).join('')}
+          <button class="pay-opt ${!apt.paymentMethod ? 'sel' : ''}" onclick="App.admSetPayment('${apt.id}','')">Sem pagamento</button>
+        </div>
+      </div>
+    </div>`;
+  },
+  
   navDashCal(dir) {
     const d = new Date(this._dashCalDate || new Date());
     const v = this._dashCalView || 'dia';
@@ -3190,7 +3515,8 @@ export const App = {
     const sv = DB.services().find(s => s.id === apt.serviceId);
     const pr = DB.pros().find(p => p.id === apt.professionalId);
     const clName = apt.userId ? _tenantUsers.find(u=>u.id===apt.userId)?.name || 'Cliente' : apt.clientName || 'Cliente';
-    const isDone = apt.status === 'concluido';
+    const isDone = normStatus(apt) === 'concluido';
+    const pay = payInfo(apt.paymentMethod);
     
     document.getElementById('modalRoot').innerHTML = `
     <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
@@ -3201,8 +3527,11 @@ export const App = {
         </div>
         <div class="uavatar" style="margin:0 auto 10px;width:60px;height:60px;font-size:1.5rem;background:var(--gold);color:#000">${initials(clName)}</div>
         <h3 style="font-size:1.2rem;font-weight:700;margin-bottom:5px">${esc(clName)}</h3>
-        <p style="color:var(--text2);margin-bottom:20px">${esc(sv?.name||'—')} com ${esc(pr?.name||'—')}<br>${fmtDate(apt.date)} às ${apt.time}</p>
-        
+        <p style="color:var(--text2);margin-bottom:14px">${esc(sv?.name||'—')} com ${esc(pr?.name||'—')}<br>${fmtDate(apt.date)} às ${apt.time} · <strong style="color:var(--gold)">${fmt(apt.price)}</strong></p>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+          <span class="badge b-grey">${pay ? `${pay.i} Pagamento: ${pay.l}` : '— Pagamento não definido'}</span>
+          <button class="btn btn-ghost btn-sm" onclick="App.openAptPayModal('${apt.id}')">💳 Definir</button>
+        </div>
         ${!isDone ? `<button class="btn btn-success w-full" style="margin-bottom:10px" onclick="App.closeModal();App.admComplete('${apt.id}')">✓ Marcar como Concluído</button>` : `<button class="btn btn-success w-full" style="margin-bottom:10px;opacity:0.9;cursor:default" disabled>✓ Serviço Concluído</button>`}
         ${apt.status !== 'cancelado' && !isDone ? `<button class="btn btn-danger w-full btn-outline" onclick="App.closeModal();App.admCancel('${apt.id}')">✕ Cancelar Agendamento</button>` : ''}
       </div>
