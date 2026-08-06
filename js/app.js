@@ -245,11 +245,13 @@ const rNavbar = () => {
     desktopLinks = [
       {h:'home',l:'Início',i:'⌂'},
       {h:'booking',l:'Agendar',i:'＋'},
+      {h:'store',l:'Loja',i:'🛒'},
       {h:'appointments',l:'Meus Agendamentos',i:'📅'}
     ];
     mobileLinks = [
       {h:'home',l:'Início',i:'⌂'},
       {h:'booking',l:'Agendar',i:'＋'},
+      {h:'store',l:'Loja',i:'🛒'},
       {h:'appointments',l:'Meus Agendamentos',i:'📅'}
     ];
   }
@@ -747,6 +749,59 @@ const rAppointments = () => {
       ${past.map(a=>rCard(a,false)).join('')}
     </div>
   </div></div>`;
+};
+
+const rStore = () => {
+  const prods = DB.products();
+  const sel = BS.products || [];
+  const prodTotal = sel.reduce((s,p)=>s+p.price*p.qty,0);
+  const totalQty = sel.reduce((s,p)=>s+p.qty,0);
+  return `
+<div class="page">
+  <div class="container">
+    <div class="ph">
+      <div><h1 class="ptitle">🛒 Loja</h1><p class="psub">Produtos disponíveis na ${esc(_tenantInfo?.name || 'barbearia')}</p></div>
+    </div>
+    <div style="background:var(--ga1);border:1px solid var(--gold3);border-radius:var(--r2);padding:14px 18px;margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <span style="font-size:.85rem;color:var(--text2)">Escolha seus produtos e finalize a compra junto com o <strong style="color:var(--gold)">agendamento</strong>.</span>
+      <button class="btn btn-ghost btn-sm" onclick="Nav.go('booking')">＋ Agendar Agora</button>
+    </div>
+    ${prods.length === 0 ? `<div class="empty"><div class="empty-ico">🛒</div><div class="empty-t">Nenhum produto disponível</div><div class="empty-d">A loja ainda não tem produtos cadastrados. Volte em breve!</div></div>` : `
+    <div class="grid g2" style="margin-bottom:22px">
+      ${prods.map(p=>{
+        const inSel = sel.find(s=>s.id===p.id);
+        const out = Number(p.stock||0) <= 0;
+        const bgImg = p.image ? `background-image:url(${p.image});background-size:cover;background-position:center;` : '';
+        return `
+        <div class="svc-card ${inSel?'sel':''}" style="padding:16px">
+          <div class="prod-photo" style="${bgImg}">${p.image ? '' : '🛒'}</div>
+          <div class="svc-name" style="font-size:.98rem">${esc(p.name)}</div>
+          <div style="font-size:.75rem;color:${out?'var(--danger)':'var(--text2)'};margin-bottom:8px">${out?'⚠ Esgotado':`📦 ${p.stock} em estoque`}</div>
+          <div class="svc-meta" style="padding-top:11px">
+            <span class="svc-price" style="font-size:1.08rem">${fmt(p.price)}</span>
+            <div style="display:flex;gap:6px;align-items:center">
+              ${inSel ? `
+                <button class="btn btn-ghost btn-sm" onclick="App.chgProd('${p.id}',-1)">−</button>
+                <span style="font-weight:700;min-width:22px;text-align:center">${inSel.qty}</span>
+                <button class="btn btn-primary btn-sm" onclick="App.chgProd('${p.id}',1)" ${inSel.qty>=p.stock?'disabled':''}>＋</button>
+              ` : `
+                <button class="btn btn-primary btn-sm" onclick="App.chgProd('${p.id}',1)" ${out?'disabled':''}>Adicionar</button>
+              `}
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`}
+    <div class="card" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;position:sticky;bottom:14px">
+      <div>
+        <div style="font-size:.72rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">Selecionados</div>
+        <div style="font-size:1.25rem;font-weight:700;font-family:var(--ft);color:var(--gold)">${fmt(prodTotal)}</div>
+        <div style="font-size:.75rem;color:var(--text3)">${totalQty>0 ? totalQty+' item(ns)' : 'Nenhum produto selecionado'}</div>
+      </div>
+      <button class="btn btn-primary btn-lg" onclick="Nav.go('booking')">✓ Continuar com o Agendamento</button>
+    </div>
+  </div>
+</div>`;
 };
 
 /* =====================================================
@@ -2599,6 +2654,7 @@ export const App = {
     let content = '';
     if(hash==='home') content=rHome();
     else if(hash==='booking') content=rBooking();
+    else if(hash==='store') content=rStore();
     else if(hash==='appointments') content=rAppointments();
     else if(hash==='barber-schedule') content=rBarberSchedule();
     else if(hash==='barber-earnings') content=rBarberEarnings();
@@ -2652,6 +2708,7 @@ export const App = {
     let content = '';
     if(hash==='home') content=rHome();
     else if(hash==='booking') content=rBooking();
+    else if(hash==='store') content=rStore();
     else if(hash==='appointments') content=rAppointments();
     else if(hash==='barber-schedule') content=rBarberSchedule();
     else if(hash==='barber-earnings') content=rBarberEarnings();

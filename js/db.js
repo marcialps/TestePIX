@@ -153,9 +153,14 @@ export const DB = {
   // ==============================
   async loadProducts() {
     if (!currentBarbeariaId) return [];
-    const q = query(collection(db, 'products'), where('barbeariaId', '==', currentBarbeariaId));
-    const snap = await getDocs(q);
-    cache.products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const q = query(collection(db, 'products'), where('barbeariaId', '==', currentBarbeariaId));
+      const snap = await getDocs(q);
+      cache.products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch(e) {
+      console.warn('[DB] Falha ao carregar produtos:', e);
+      cache.products = [];
+    }
     _cacheLoaded.products = true;
     return cache.products;
   },
