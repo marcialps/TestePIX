@@ -287,6 +287,28 @@ textarea.fc{resize:vertical;min-height:72px}
 .tag{background:var(--bg4);border:1px solid var(--border2);border-radius:100px;padding:2px 9px;font-size:.72rem;color:var(--text2)}
 
 /* =========================================
+   PRODUCTS (LOJA)
+========================================= */
+.prod-img{
+  width:64px;height:64px;border-radius:12px;flex-shrink:0;
+  background:var(--ga2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:var(--gold);
+  background-size:cover;background-position:center;
+}
+.prod-photo{
+  width:100%;height:130px;border-radius:var(--r2);overflow:hidden;margin-bottom:12px;
+  background:var(--ga2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:2.4rem;color:var(--gold);
+  background-size:cover;background-position:center;
+}
+.prod-photo-preview{
+  width:110px;height:110px;border-radius:14px;margin:0;
+  display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:700;font-family:var(--ft);
+  background:var(--bg3);border:2px dashed var(--border2);color:var(--text3);
+  background-size:cover;background-position:center;
+}
+
+/* =========================================
    BOOKING WIZARD
 ========================================= */
 .wiz-steps{display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:36px;overflow-x:auto;padding:4px}

@@ -168,10 +168,10 @@ const Avail = {
    BOOKING STATE
 ===================================================== */
 const BS = {
-  step:1, service:null, pro:null, date:null, time:null,
+  step:1, service:null, pro:null, date:null, time:null, products:[],
   calM:new Date().getMonth(), calY:new Date().getFullYear(),
   reset(){
-    this.step=1;this.service=null;this.pro=null;this.date=null;this.time=null;
+    this.step=1;this.service=null;this.pro=null;this.date=null;this.time=null;this.products=[];
     const d=new Date();this.calM=d.getMonth();this.calY=d.getFullYear();
   }
 };
@@ -212,6 +212,7 @@ const rNavbar = () => {
       {h:'admin',l:'Dashboard',i:'◈'},
       {h:'admin-services',l:'Serviços',i:'✦'},
       {h:'admin-barbers',l:'Barbeiros',i:'✂'},
+      {h:'admin-store',l:'Loja',i:'🛒'},
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
       {h:'admin-dreport',l:'Relatório Detalhado',i:'🧾'},
       {h:'admin-recon',l:'Conciliação',i:'⇄'}
@@ -220,6 +221,7 @@ const rNavbar = () => {
       {h:'admin',l:'Dashboard',i:'◈'},
       {h:'admin-services',l:'Serviços',i:'✦'},
       {h:'admin-barbers',l:'Barbeiros',i:'✂'},
+      {h:'admin-store',l:'Loja',i:'🛒'},
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
       {h:'admin-clients',l:'Clientes',i:'👥'},
       {h:'admin-reports',l:'Relatórios',i:'📊'},
@@ -464,16 +466,16 @@ const rHome = () => {
 // --- BOOKING ---
 const rBooking = () => {
   const {step} = BS;
-  const stepDefs = ['Serviço','Barbeiro','Data & Hora','Confirmar'];
+  const stepDefs = ['Serviço','Barbeiro','Data & Hora','Loja','Confirmar'];
   const stepsH = stepDefs.map((lbl,i)=>{
     const n=i+1, act=n===step, done=n<step;
     const cc=done?'done':act?'active':'';
     return `${i>0?`<div class="step-line ${n-1<step?'done':''}"></div>`:''}<div class="wiz-step"><div class="step-c ${cc}">${done?'✓':n}</div><span class="step-lbl ${cc}">${lbl}</span></div>`;
   }).join('');
 
-  if(step===5) return `<div class="page"><div class="container">${rBkSuccess(_lastPixPayload, BS.service?.price, _lastPixAptId)}</div></div>`;
+  if(step===6) return `<div class="page"><div class="container">${rBkSuccess(_lastPixPayload, _lastPixTotal, _lastPixAptId, _lastBkProducts)}</div></div>`;
 
-  const content = step===1?rBkS1():step===2?rBkS2():step===3?rBkS3():rBkS4();
+  const content = step===1?rBkS1():step===2?rBkS2():step===3?rBkS3():step===4?rBkS4():rBkS5();
   return `
 <div class="page">
   <div class="container">
@@ -568,16 +570,61 @@ const rBkS3 = () => {
 };
 
 const rBkS4 = () => {
-  const {service,pro,date,time}=BS; const u=Auth.cur;
+  const prods = DB.products();
+  const sel = BS.products || [];
+  const prodTotal = sel.reduce((s,p)=>s+p.price*p.qty,0);
   return `
-  <div style="display:flex;align-items:center;gap:11px;margin-bottom:18px"><button class="btn btn-ghost btn-sm" onclick="App.bkBack()">← Voltar</button><h3 style="font-family:var(--ft);font-size:1.15rem">4. Confirme seu agendamento</h3></div>
+  <div style="display:flex;align-items:center;gap:11px;margin-bottom:12px"><button class="btn btn-ghost btn-sm" onclick="App.bkBack()">← Voltar</button><h3 style="font-family:var(--ft);font-size:1.15rem">4. Loja — Produtos (opcional)</h3></div>
+  <p style="font-size:.84rem;color:var(--text2);margin-bottom:16px">Adicione produtos da barbearia à sua compra. A quantidade em estoque é atualizada automaticamente.</p>
+  ${prods.length === 0 ? `<div class="empty"><div class="empty-ico">🛒</div><div class="empty-t">Nenhum produto disponível</div><div class="empty-d">A loja da barbearia ainda não tem produtos cadastrados.</div></div>` : `
+  <div class="grid g2" style="margin-bottom:16px">
+    ${prods.map(p=>{
+      const inSel = sel.find(s=>s.id===p.id);
+      const out = Number(p.stock||0) <= 0;
+      const bgImg = p.image ? `background-image:url(${p.image});background-size:cover;background-position:center;` : '';
+      return `
+      <div class="svc-card ${inSel?'sel':''}" style="padding:16px">
+        <div class="prod-photo" style="${bgImg}">${p.image ? '' : '🛒'}</div>
+        <div class="svc-name" style="font-size:.98rem">${esc(p.name)}</div>
+        <div style="font-size:.75rem;color:${out?'var(--danger)':'var(--text2)'};margin-bottom:8px">${out?'⚠ Esgotado':`📦 ${p.stock} em estoque`}</div>
+        <div class="svc-meta" style="padding-top:11px">
+          <span class="svc-price" style="font-size:1.08rem">${fmt(p.price)}</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${inSel ? `
+              <button class="btn btn-ghost btn-sm" onclick="App.chgProd('${p.id}',-1)">−</button>
+              <span style="font-weight:700;min-width:22px;text-align:center">${inSel.qty}</span>
+              <button class="btn btn-primary btn-sm" onclick="App.chgProd('${p.id}',1)" ${inSel.qty>=p.stock?'disabled':''}>＋</button>
+            ` : `
+              <button class="btn btn-primary btn-sm" onclick="App.chgProd('${p.id}',1)" ${out?'disabled':''}>Adicionar</button>
+            `}
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`}
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    ${sel.length ? `<span style="font-size:.87rem;color:var(--text2)">🛒 ${sel.reduce((s,p)=>s+p.qty,0)} item(ns) · <strong style="color:var(--gold)">${fmt(prodTotal)}</strong></span>` : `<span style="font-size:.85rem;color:var(--text3)">Nenhum produto selecionado</span>`}
+    <button class="btn btn-primary" onclick="App.bkNext()">Próximo: Confirmar →</button>
+  </div>`;
+};
+
+const rBkS5 = () => {
+  const {service,pro,date,time,products}=BS; const u=Auth.cur;
+  const prodTotal = (products||[]).reduce((s,p)=>s+p.price*p.qty,0);
+  const total = service.price + prodTotal;
+  return `
+  <div style="display:flex;align-items:center;gap:11px;margin-bottom:18px"><button class="btn btn-ghost btn-sm" onclick="App.bkBack()">← Voltar</button><h3 style="font-family:var(--ft);font-size:1.15rem">5. Confirme seu agendamento</h3></div>
   <div class="conf-sum">
     <div class="conf-row"><span class="conf-lbl">👤 Cliente</span><span class="conf-val">${esc(u.name)}</span></div>
     <div class="conf-row"><span class="conf-lbl">${svcIcon(service.name)} Serviço</span><span class="conf-val">${esc(service.name)}</span></div>
     <div class="conf-row"><span class="conf-lbl">✂ Barbeiro</span><span class="conf-val">${esc(pro.name)}</span></div>
     <div class="conf-row"><span class="conf-lbl">📅 Data</span><span class="conf-val">${fmtLong(date)}</span></div>
     <div class="conf-row"><span class="conf-lbl">🕐 Horário</span><span class="conf-val">${time}</span></div>
-    <div class="conf-row" style="padding-top:14px"><span class="conf-lbl" style="font-size:.87rem;color:var(--text)">💰 Total a pagar</span><span class="conf-val conf-total">${fmt(service.price)}</span></div>
+    ${products&&products.length?`
+    <div class="conf-row"><span class="conf-lbl">🛒 Produtos</span><span class="conf-val">${products.map(p=>`${esc(p.name)} × ${p.qty}`).join('<br>')}</span></div>
+    <div class="conf-row"><span class="conf-lbl" style="font-size:.8rem;color:var(--text2)">Subtotal serviços</span><span class="conf-val">${fmt(service.price)}</span></div>
+    <div class="conf-row"><span class="conf-lbl" style="font-size:.8rem;color:var(--text2)">Subtotal produtos</span><span class="conf-val">${fmt(prodTotal)}</span></div>`:''}
+    <div class="conf-row" style="padding-top:14px"><span class="conf-lbl" style="font-size:.87rem;color:var(--text)">💰 Total a pagar</span><span class="conf-val conf-total">${fmt(total)}</span></div>
   </div>
   ${_tenantInfo?.pixConfig?.chave ? `
   <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:var(--r2);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
@@ -592,8 +639,10 @@ const rBkS4 = () => {
 // Estado do PIX gerado (para reexibir no modal)
 let _lastPixPayload = null;
 let _lastPixAptId = null;
+let _lastPixTotal = 0;
+let _lastBkProducts = [];
 
-const rBkSuccess = (pixPayload = null, valor = 0, aptId = null) => {
+const rBkSuccess = (pixPayload = null, valor = 0, aptId = null, products = []) => {
   const pixCfg = _tenantInfo?.pixConfig;
   const hasPixCfg = !!(pixCfg?.chave);
 
@@ -629,6 +678,11 @@ const rBkSuccess = (pixPayload = null, valor = 0, aptId = null) => {
   <div class="success-ico">✓</div>
   <h2 style="font-family:var(--ft);font-size:1.75rem;margin-bottom:7px">Agendamento Confirmado!</h2>
   <p style="color:var(--text2);font-size:.9rem">Seu horário está reservado.</p>
+  ${products&&products.length?`
+  <div style="max-width:400px;margin:18px auto 0;background:var(--ga1);border:1px solid var(--gold3);border-radius:var(--r2);padding:12px 16px;text-align:left">
+    <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--gold);font-weight:700;margin-bottom:8px">🛒 Produtos selecionados</div>
+    ${products.map(p=>`<div style="display:flex;justify-content:space-between;font-size:.85rem;padding:3px 0"><span>${esc(p.name)} × ${p.qty}</span><strong>${fmt(p.price*p.qty)}</strong></div>`).join('')}
+  </div>`:''}
   ${pixSection}
   <div style="display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap">
     <button class="btn btn-primary btn-lg" onclick="App.newBk()">＋ Novo Agendamento</button>
@@ -949,6 +1003,7 @@ const rAdmLayout = (active, content) => {
     {id:'admin',i:'◈',l:'Dashboard'},
     {id:'admin-services',i:'✦',l:'Serviços'},
     {id:'admin-barbers',i:'✂',l:'Barbeiros'},
+    {id:'admin-store',i:'🛒',l:'Loja'},
     {id:'admin-appointments',i:'📅',l:'Agendamentos'},
     {id:'admin-clients',i:'👥',l:'Clientes'},
     {id:'admin-reports',i:'📊',l:'Relatórios'},
@@ -1234,6 +1289,45 @@ const rAdmBarbers = () => {
       </div>`;
     }).join('')}
   </div>`);
+};
+
+const rAdmStore = () => {
+  const prods = DB.products();
+  return rAdmLayout('admin-store',`
+  <div class="ph">
+    <div><h1 class="ptitle">🛒 Loja</h1><p class="psub">Gerencie os produtos vendidos na barbearia</p></div>
+    <button class="btn btn-primary" onclick="App.openProdModal()">＋ Novo Produto</button>
+  </div>
+  ${prods.length === 0 ? `<div class="empty"><div class="empty-ico">🛒</div><div class="empty-t">Nenhum produto cadastrado</div><div class="empty-d">Cadastre produtos como pomadas, shampoos, acessórios etc. Eles aparecerão na tela de agendamento do cliente.</div></div>` : `
+  <div class="grid g2">
+    ${prods.map(p=>{
+      const bgImg = p.image ? `background-image:url(${p.image});background-size:cover;background-position:center;` : '';
+      const out = Number(p.stock || 0) <= 0;
+      return `
+      <div class="card card-hover">
+        <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:14px">
+          <div class="prod-img" style="${bgImg}">${p.image ? '' : '🛒'}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:7px">
+              <div style="min-width:0">
+                <div style="font-weight:700;font-family:var(--ft);font-size:1rem">${esc(p.name)}</div>
+                <div style="font-size:.75rem;color:${out?'var(--danger)':'var(--text2)'};margin-top:4px">${out ? '⚠ Esgotado' : `📦 ${p.stock} em estoque`}</div>
+              </div>
+              <div style="display:flex;gap:5px;flex-shrink:0">
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="App.openProdModal('${p.id}')">✎</button>
+                <button class="btn btn-danger btn-sm btn-icon" onclick="App.delProd('${p.id}')">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-top:11px;border-top:1px solid var(--border)">
+          <span class="tgold" style="font-family:var(--ft);font-size:1.2rem;font-weight:700">${fmt(p.price)}</span>
+          <span class="badge ${out?'b-danger':'b-success'}" style="font-size:.65rem">${out?'Esgotado':'Em estoque'}</span>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`}
+  `);
 };
 
 const rAdmApts = () => {
@@ -2478,21 +2572,24 @@ export const App = {
           await Promise.all([
             DB.loadServices(),
             DB.loadPros(),
-            DB.loadApts()
+            DB.loadApts(),
+            DB.loadProducts()
           ]);
           _tenantUsers = await DB.loadTenantUsers();
         } else if(isBarber){
           await Promise.all([
             DB.loadServices(),
             DB.loadPros(),
-            DB.loadApts()
+            DB.loadApts(),
+            DB.loadProducts()
           ]);
           _tenantUsers = await DB.loadTenantUsers();
         } else {
           await Promise.all([
             DB.loadServices(),
             DB.loadPros(),
-            DB.loadUserApts(Auth.cur.id)
+            DB.loadUserApts(Auth.cur.id),
+            DB.loadProducts()
           ]);
         }
       }
@@ -2509,6 +2606,7 @@ export const App = {
     else if(hash==='admin') content=rAdmDash();
     else if(hash==='admin-services') content=rAdmServices();
     else if(hash==='admin-barbers') content=rAdmBarbers();
+    else if(hash==='admin-store') content=rAdmStore();
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
     else if(hash==='admin-reports') content=rAdmReports();
@@ -2561,6 +2659,7 @@ export const App = {
     else if(hash==='admin') content=rAdmDash();
     else if(hash==='admin-services') content=rAdmServices();
     else if(hash==='admin-barbers') content=rAdmBarbers();
+    else if(hash==='admin-store') content=rAdmStore();
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
     else if(hash==='admin-reports') content=rAdmReports();
@@ -2918,7 +3017,7 @@ export const App = {
   bkBack(){BS.step=Math.max(1,BS.step-1); this._renderInPlace();},
   
   async confirmBk(){
-    const {service,pro,date,time}=BS; const u=Auth.cur;
+    const {service,pro,date,time,products}=BS; const u=Auth.cur;
     if(!service||!pro||!date||!time){T.err('Dados incompletos.');return;}
     document.getElementById('btnConfirmBk').disabled = true;
     try {
@@ -2926,34 +3025,55 @@ export const App = {
         T.err('Horário indisponível.');BS.step=3;this._renderInPlace();return;
       }
 
+      // Verifica estoque antes de confirmar
+      const selProds = products || [];
+      for(const p of selProds){
+        const prod = DB.products().find(x=>x.id===p.id);
+        if(!prod || Number(prod.stock||0) < p.qty){
+          T.err(`Estoque insuficiente para "${p.name}".`); BS.step=4; this._renderInPlace(); return;
+        }
+      }
+
+      const prodTotal = selProds.reduce((s,p)=>s+p.price*p.qty,0);
+      const totalPrice = Math.round((service.price + prodTotal) * 100) / 100;
+
       // Verifica se PIX está configurado
       const pixCfg = _tenantInfo?.pixConfig;
       const pixStatus = pixCfg?.chave ? 'pendente' : null;
 
-      const apt={userId:u.id,serviceId:service.id,professionalId:pro.id,date,time,status:'confirmado',createdAt:new Date().toISOString(),price:service.price};
+      const apt={userId:u.id,serviceId:service.id,professionalId:pro.id,date,time,status:'confirmado',createdAt:new Date().toISOString(),price:totalPrice};
+      if(selProds.length) apt.products = selProds;
       if(pixStatus) apt.pixStatus = pixStatus;
 
       const docRef = await DB.addAptAndReturn(apt);
       const aptId = docRef?.id || null;
       _lastPixAptId = aptId;
+      _lastPixTotal = totalPrice;
+      _lastBkProducts = selProds;
 
       // Gera payload PIX se configurado
       _lastPixPayload = null;
-      if(pixCfg?.chave && service.price > 0){
+      if(pixCfg?.chave && totalPrice > 0){
         try{
           _lastPixPayload = generatePixPayload({
             chave: pixCfg.chave,
             nome:  pixCfg.nome  || 'Barbearia',
             cidade:pixCfg.cidade|| 'Brasil',
-            valor: service.price,
+            valor: totalPrice,
             txId:  (aptId || uid()).slice(0,25).replace(/[^a-zA-Z0-9]/g,''),
             desc:  service.name.slice(0,36)
           });
         }catch(pe){ console.warn('PIX gen error',pe); }
       }
 
+      // Desconta o estoque dos produtos selecionados
+      for(const p of selProds){
+        const prod = DB.products().find(x=>x.id===p.id);
+        if(prod) await DB.updateProductStock(p.id, Math.max(0, Number(prod.stock||0) - p.qty));
+      }
+
       await DB.updateUserPoints(u.id, (u.points||0) + Math.floor(service.price));
-      BS.step=5; T.ok('Agendamento confirmado!'); this._renderInPlace();
+      BS.step=6; T.ok('Agendamento confirmado!'); this._renderInPlace();
     } catch(e) {
       console.error(e); T.err('Erro ao agendar.'); document.getElementById('btnConfirmBk').disabled = false;
     }
@@ -3341,6 +3461,125 @@ export const App = {
       await DB.deletePro(id);
       T.ok('Barbeiro excluído.');
       // deletePro já recarrega pros no cache
+      this._renderInPlace();
+    }
+  },
+
+  chgProd(id, delta){
+    const prod = DB.products().find(p=>p.id===id);
+    if(!prod) return;
+    const idx = BS.products.findIndex(s=>s.id===id);
+    if(delta > 0){
+      const cur = idx>=0 ? BS.products[idx].qty : 0;
+      if(cur >= Number(prod.stock||0)){ T.warn('Estoque insuficiente.'); return; }
+      if(idx >= 0) BS.products[idx].qty++;
+      else BS.products.push({ id: prod.id, name: prod.name, price: prod.price, qty: 1 });
+    } else {
+      if(idx >= 0){
+        if(BS.products[idx].qty > 1) BS.products[idx].qty--;
+        else BS.products.splice(idx,1);
+      }
+    }
+    this._renderInPlace();
+  },
+
+  openProdModal(id=null){
+    const p=id?DB.products().find(x=>x.id===id):null;
+    let currentPhotoBase64 = p?.image || '';
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal">
+        <div class="modal-head"><h3 class="modal-title">${p?'Editar Produto':'Novo Produto'}</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <form id="prodFrm">
+          <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:20px;gap:10px">
+            <div id="prodPhotoPreview" class="prod-photo-preview" style="${currentPhotoBase64?`background-image:url(${currentPhotoBase64});background-size:cover;background-position:center;border-style:solid;`:''}">
+              ${currentPhotoBase64 ? '' : (p ? esc(p.name)[0].toUpperCase() : '🛒')}
+            </div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn btn-ghost btn-sm" id="btnUploadProdPhoto">📁 Foto</button>
+              <button type="button" class="btn btn-danger btn-sm" id="btnRemoveProdPhoto" style="${currentPhotoBase64?'':'display:none'}">✕ Remover</button>
+            </div>
+            <input type="file" id="prodPhotoFile" accept="image/*" style="display:none">
+            <div style="font-size:.72rem;color:var(--text3);text-align:center;margin-top:-4px">Envie uma imagem do produto (será exibida na tela de agendamento do cliente).</div>
+          </div>
+          <div class="fg"><label class="flabel">Nome *</label><input type="text" name="name" class="fc" value="${esc(p?.name||'')}" placeholder="Ex: Pomada modeladora" required></div>
+          <div class="fg"><label class="flabel">Valor (R$) *</label><input type="number" name="price" class="fc" value="${p?.price||''}" min="0" step="0.01" placeholder="Ex: 29.90" required></div>
+          <div class="fg"><label class="flabel">Quantidade em estoque *</label><input type="number" name="stock" class="fc" value="${p?.stock ?? 0}" min="0" step="1" required></div>
+          <button type="submit" class="btn btn-primary w-full">${p?'Salvar':'Cadastrar Produto'}</button>
+        </form>
+      </div>
+    </div>`;
+
+    const previewEl = document.getElementById('prodPhotoPreview');
+    const uploadBtn = document.getElementById('btnUploadProdPhoto');
+    const removeBtn = document.getElementById('btnRemoveProdPhoto');
+    const fileInput = document.getElementById('prodPhotoFile');
+
+    const resizeImage = (file, cb) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const max = 600;
+          let w = img.width, h = img.height;
+          if(w > max || h > max){
+            const ratio = Math.min(max/w, max/h);
+            w = Math.round(w*ratio); h = Math.round(h*ratio);
+          }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          cb(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if(!file) return;
+      resizeImage(file, (base64) => {
+        currentPhotoBase64 = base64;
+        previewEl.style.backgroundImage = `url(${base64})`;
+        previewEl.style.backgroundSize = 'cover';
+        previewEl.style.backgroundPosition = 'center';
+        previewEl.style.borderStyle = 'solid';
+        previewEl.innerHTML = '';
+        removeBtn.style.display = 'inline-flex';
+      });
+    };
+
+    uploadBtn.onclick = () => fileInput.click();
+
+    removeBtn.onclick = () => {
+      currentPhotoBase64 = '';
+      previewEl.style.backgroundImage = 'none';
+      previewEl.style.borderStyle = 'dashed';
+      previewEl.innerHTML = p ? esc(p.name)[0].toUpperCase() : '🛒';
+      removeBtn.style.display = 'none';
+      fileInput.value = '';
+    };
+
+    document.getElementById('prodFrm').onsubmit = async e => {
+      e.preventDefault(); const fd=new FormData(e.target);
+      const data={
+        name: fd.get('name').trim(),
+        price: Math.max(0, parseFloat(fd.get('price'))||0),
+        stock: Math.max(0, Math.floor(parseInt(fd.get('stock'),10)||0)),
+        image: currentPhotoBase64
+      };
+      if(p) data.id = p.id;
+      try{
+        await DB.saveProduct(data); App.closeModal(); T.ok(p?'Produto atualizado!':'Produto cadastrado!'); this._renderInPlace();
+      }catch(err){ T.err('Erro ao salvar produto: '+err.message); }
+    };
+  },
+
+  async delProd(id){
+    if(confirm('Excluir este produto?')){
+      await DB.deleteProduct(id);
+      T.ok('Produto excluído.');
       this._renderInPlace();
     }
   },

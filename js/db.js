@@ -7,22 +7,24 @@ let currentBarbeariaId = null;
 let cache = {
   services: [],
   pros: [],
-  apts: []
+  apts: [],
+  products: []
 };
 
 // Flags de controle de cache — evitam recarregar dados já carregados
 let _cacheLoaded = {
   services: false,
   pros: false,
-  apts: false
+  apts: false,
+  products: false
 };
 
 export const DB = {
   setBarbeariaId(id) {
     // Ao trocar de barbearia, invalida o cache anterior
     if (id !== currentBarbeariaId) {
-      cache = { services: [], pros: [], apts: [] };
-      _cacheLoaded = { services: false, pros: false, apts: false };
+      cache = { services: [], pros: [], apts: [], products: [] };
+      _cacheLoaded = { services: false, pros: false, apts: false, products: false };
     }
     currentBarbeariaId = id;
   },
@@ -31,15 +33,15 @@ export const DB = {
   /** Retorna true se os dados principais já foram carregados nesta sessão */
   hasCache(isAdmin = false) {
     if (isAdmin) {
-      return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts;
+      return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts && _cacheLoaded.products;
     }
-    return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts;
+    return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts && _cacheLoaded.products;
   },
 
   /** Invalida o cache forçando recarga na próxima navegação */
   invalidateCache(keys = null) {
     if (!keys) {
-      _cacheLoaded = { services: false, pros: false, apts: false };
+      _cacheLoaded = { services: false, pros: false, apts: false, products: false };
     } else {
       keys.forEach(k => { if (k in _cacheLoaded) _cacheLoaded[k] = false; });
     }
@@ -144,6 +146,38 @@ export const DB = {
   async deletePro(id) {
     await deleteDoc(doc(db, 'professionals', id));
     await this.loadPros();
+  },
+
+  // ==============================
+  // PRODUTOS (Loja)
+  // ==============================
+  async loadProducts() {
+    if (!currentBarbeariaId) return [];
+    const q = query(collection(db, 'products'), where('barbeariaId', '==', currentBarbeariaId));
+    const snap = await getDocs(q);
+    cache.products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _cacheLoaded.products = true;
+    return cache.products;
+  },
+  products() { return cache.products; },
+  async saveProduct(data) {
+    if (data.id) {
+      const id = data.id;
+      delete data.id;
+      await updateDoc(doc(db, 'products', id), data);
+    } else {
+      await addDoc(collection(db, 'products'), { ...data, barbeariaId: currentBarbeariaId });
+    }
+    await this.loadProducts();
+  },
+  async deleteProduct(id) {
+    await deleteDoc(doc(db, 'products', id));
+    await this.loadProducts();
+  },
+  async updateProductStock(id, stock) {
+    await updateDoc(doc(db, 'products', id), { stock });
+    const idx = cache.products.findIndex(p => p.id === id);
+    if (idx >= 0) cache.products[idx].stock = stock;
   },
 
   // ==============================
