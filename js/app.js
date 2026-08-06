@@ -213,6 +213,7 @@ const rNavbar = () => {
       {h:'admin-services',l:'Serviços',i:'✦'},
       {h:'admin-barbers',l:'Barbeiros',i:'✂'},
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
+      {h:'admin-dreport',l:'Relatório Detalhado',i:'🧾'},
       {h:'admin-recon',l:'Conciliação',i:'⇄'}
     ];
     mobileLinks = [
@@ -222,6 +223,7 @@ const rNavbar = () => {
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
       {h:'admin-clients',l:'Clientes',i:'👥'},
       {h:'admin-reports',l:'Relatórios',i:'📊'},
+      {h:'admin-dreport',l:'Relatório Detalhado',i:'🧾'},
       {h:'admin-recon',l:'Conciliação',i:'⇄'},
       {h:'admin-pix',l:'Configurações PIX',i:'⚡'},
       {h:'admin-reminders',l:'Lembretes Whats',i:'💬'}
@@ -950,6 +952,7 @@ const rAdmLayout = (active, content) => {
     {id:'admin-appointments',i:'📅',l:'Agendamentos'},
     {id:'admin-clients',i:'👥',l:'Clientes'},
     {id:'admin-reports',i:'📊',l:'Relatórios'},
+    {id:'admin-dreport',i:'🧾',l:'Relatório Detalhado'},
     {id:'admin-recon',i:'⇄',l:'Conciliação'},
     {id:'admin-pix',i:'⚡',l:'Configurações PIX'},
     {id:'admin-reminders',i:'💬',l:'Lembretes Whats'},
@@ -1948,6 +1951,254 @@ const rAdmReports = () => {
 };
 
 /* =====================================================
+   RELATÓRIO DETALHADO (Aluguel de Cadeiras / Comissão)
+===================================================== */
+const DPERIODS = [
+  { v: 'hoje', l: 'Hoje' },
+  { v: 'ontem', l: 'Ontem' },
+  { v: 'semana', l: 'Essa Semana' },
+  { v: 'mes', l: 'Este Mês' },
+  { v: 'mesAnterior', l: 'Mês Anterior' },
+  { v: 'custom', l: 'Período Personalizado' }
+];
+
+const isDoneApt = (st) => st === 'concluido' || st === 'concluída' || st === 'concluído';
+
+const rAdmDReport = () => {
+  const all = DB.apts();
+  const pros = DB.pros();
+  const svcs = DB.services();
+
+  const period = App._dreportPeriod || 'mes';
+  const barberId = App._dreportBarber || '';
+  const discount = Math.max(0, parseFloat(App._dreportDiscount) || 0);
+  const from = App._dreportFrom || '';
+  const to = App._dreportTo || '';
+
+  const p2 = n => String(n).padStart(2, '0');
+  const dStr = d => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+
+  // Calcula o intervalo do período
+  const now = new Date();
+  let fromDate = null, toDate = null;
+  if (period === 'hoje') { fromDate = new Date(now); toDate = new Date(now); }
+  else if (period === 'ontem') { fromDate = addDays(now, -1); toDate = addDays(now, -1); }
+  else if (period === 'semana') {
+    const dow = now.getDay();
+    fromDate = addDays(now, -(dow === 0 ? 6 : dow - 1));
+    toDate = new Date(now);
+  }
+  else if (period === 'mes') { fromDate = new Date(now.getFullYear(), now.getMonth(), 1); toDate = new Date(now); }
+  else if (period === 'mesAnterior') {
+    fromDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    toDate = new Date(now.getFullYear(), now.getMonth(), 0);
+  }
+  else {
+    fromDate = from ? new Date(from + 'T12:00:00') : null;
+    toDate = to ? new Date(to + 'T12:00:00') : null;
+  }
+
+  const fromStr = fromDate ? dStr(fromDate) : '';
+  const toStr = toDate ? dStr(toDate) : '';
+
+  const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  let periodLabel = 'Período';
+  if (period === 'hoje') periodLabel = 'Hoje';
+  else if (period === 'ontem') periodLabel = 'Ontem';
+  else if (period === 'semana') periodLabel = 'Esta Semana';
+  else if (period === 'mes') periodLabel = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+  else if (period === 'mesAnterior') {
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    periodLabel = `${MONTHS[prev.getMonth()]} ${prev.getFullYear()}`;
+  }
+  else periodLabel = `${fmtDate(fromStr)} a ${fmtDate(toStr)}`;
+
+  const barber = pros.find(p => p.id === barberId);
+  const barberName = barber ? barber.name : '';
+
+  // Filtra atendimentos concluídos do barbeiro no período
+  let rows = [];
+  if (barberId) {
+    rows = all.filter(a =>
+      a.professionalId === barberId &&
+      isDoneApt(a.status) &&
+      (!fromStr || (a.date || '') >= fromStr) &&
+      (!toStr || (a.date || '') <= toStr)
+    ).sort((a, b) => (a.date === b.date ? (a.time || '').localeCompare(b.time || '') : (a.date || '').localeCompare(b.date || '')));
+  }
+
+  const revenue = rows.reduce((s, a) => s + Number(a.price || 0), 0);
+  const count = rows.length;
+  const avgTicket = count ? revenue / count : 0;
+  const commission = revenue * discount / 100;
+  const net = revenue - commission;
+
+  // Dados do gráfico de evolução diária
+  const chartLabels = [], chartData = [];
+  if (fromStr && toStr) {
+    for (let d = new Date(fromStr + 'T12:00:00'); d <= new Date(toStr + 'T12:00:00'); d = addDays(d, 1)) {
+      const ds = dStr(d);
+      chartLabels.push(ds.split('-')[2] + '/' + ds.split('-')[1]);
+      chartData.push(rows.filter(a => a.date === ds).reduce((s, a) => s + Number(a.price || 0), 0));
+    }
+  }
+
+  // Dados do gráfico de formas de pagamento
+  const payMap = {};
+  rows.forEach(a => {
+    const k = a.payMethod || 'sem_registro';
+    payMap[k] = (payMap[k] || 0) + Number(a.price || 0);
+  });
+  const payLabels = Object.keys(payMap);
+  const payData = payLabels.map(k => payMap[k]);
+
+  setTimeout(() => {
+    App._drawDReportCharts(chartLabels, chartData, payLabels, payData);
+  }, 100);
+
+  const filterCard = `
+    <div class="card" style="padding:16px;margin-bottom:20px">
+      <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
+        <div class="fg" style="margin-bottom:0;min-width:200px;flex:1">
+          <label class="flabel">Barbeiro</label>
+          <select class="fc" onchange="App.dReportSetBarber(this.value)">
+            <option value="">Selecione o barbeiro...</option>
+            ${pros.map(p => `<option value="${p.id}" ${p.id === barberId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fg" style="margin-bottom:0;min-width:190px">
+          <label class="flabel">Taxa de desconto (%)</label>
+          <input type="number" id="drepDiscount" class="fc" min="0" max="100" step="0.01" value="${App._dreportDiscount || ''}" placeholder="Ex: 30" onchange="App.dReportSetDiscount(this.value)">
+        </div>
+        <div class="fg" style="margin-bottom:0;min-width:210px">
+          <label class="flabel">Período</label>
+          <select class="fc" onchange="App.dReportSetPeriod(this.value)">
+            ${DPERIODS.map(p => `<option value="${p.v}" ${period === p.v ? 'selected' : ''}>${p.l}</option>`).join('')}
+          </select>
+        </div>
+        ${period === 'custom' ? `
+          <div class="fg" style="margin-bottom:0">
+            <label class="flabel">De</label>
+            <input type="date" class="fc" value="${from}" onchange="App.dReportSetRange('from', this.value)">
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label class="flabel">Até</label>
+            <input type="date" class="fc" value="${to}" onchange="App.dReportSetRange('to', this.value)">
+          </div>
+        ` : ''}
+        <button class="btn btn-primary btn-sm" onclick="App.dReportGenerate()">⚡ Gerar Relatório</button>
+      </div>
+    </div>`;
+
+  if (!barberId) {
+    return rAdmLayout('admin-dreport', `
+      <div class="ph">
+        <div><h1 class="ptitle">🧾 Relatório Detalhado</h1><p class="psub">Relatório para barbearias que alugam cadeiras e cobram uma porcentagem sobre os serviços</p></div>
+      </div>
+      ${filterCard}
+      <div class="empty">
+        <div class="empty-ico">✂️</div>
+        <div class="empty-t">Selecione um barbeiro para gerar o relatório</div>
+        <div class="empty-d">Escolha o barbeiro, informe a taxa de desconto (%) e o período desejado.</div>
+      </div>
+    `);
+  }
+
+  return rAdmLayout('admin-dreport', `
+    <div class="ph">
+      <div><h1 class="ptitle">🧾 Relatório Detalhado</h1><p class="psub">Faturamento e comissão do barbeiro ${esc(barberName)} · ${periodLabel}</p></div>
+    </div>
+
+    ${filterCard}
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="scl">Faturamento do Período</div>
+        <div class="scv" style="color:var(--success)">${fmt(revenue)}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">${esc(barberName)} · ${periodLabel}</div>
+      </div>
+      <div class="stat-card">
+        <div class="scl">Atendimentos</div>
+        <div class="scv" style="color:var(--info)">${count}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Atendimentos concluídos no período</div>
+      </div>
+      <div class="stat-card">
+        <div class="scl">Ticket Médio</div>
+        <div class="scv" style="color:var(--gold)">${fmt(avgTicket)}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Faturamento ÷ atendimentos</div>
+      </div>
+      <div class="stat-card">
+        <div class="scl">Valor Líquido</div>
+        <div class="scv" style="color:var(--info)">${fmt(net)}</div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">Após taxa de ${discount.toLocaleString('pt-BR')}% (${fmt(commission)} de desconto)</div>
+      </div>
+    </div>
+
+    <div class="g2" style="gap:20px;margin-bottom:20px">
+      <div class="card" style="padding:20px;height:330px">
+        <div style="font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:20px">📈 Evolução do Faturamento</div>
+        <div style="height:250px;position:relative">
+          <canvas id="dReportChart"></canvas>
+        </div>
+      </div>
+      <div class="card" style="padding:20px;height:330px">
+        <div style="font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:20px">💳 Faturamento por Forma de Pagamento</div>
+        <div style="height:250px;position:relative">
+          <canvas id="dReportPayChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:20px">
+      <div style="font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;display:flex;align-items:center;gap:8px">
+        <span>📋</span> Serviços Realizados no Período
+        <span class="badge b-info" style="margin-left:auto">${count} atendimento${count !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Data</th><th>Cliente</th><th>Serviço</th><th>Forma de Pagamento</th><th>Valor</th><th>Líquido p/ Barbeiro</th></tr>
+          </thead>
+          <tbody>
+            ${rows.length ? rows.map(a => {
+              const sv = svcs.find(s => s.id === a.serviceId);
+              const usr = _tenantUsers ? _tenantUsers.find(u => u.id === a.userId) : null;
+              const clName = a.clientName || usr?.name || 'Cliente';
+              const itemDiscount = Number(a.discount || 0);
+              const pago = Number(a.price || 0);
+              const itemNet = pago * (1 - discount / 100);
+              return `<tr>
+                <td style="white-space:nowrap">${fmtDate(a.date)}</td>
+                <td><strong>${esc(clName)}</strong></td>
+                <td>${esc(sv?.name || '—')}</td>
+                <td>${a.payMethod ? `<span class="badge ${PAY_BADGE(a.payMethod)}">${PAY_ICON(a.payMethod)} ${PAY_LABEL(a.payMethod)}</span>` : `<span class="badge b-grey">—</span>`}</td>
+                <td style="font-weight:700;color:var(--success)">${fmt(pago)}${itemDiscount > 0 ? ` <span style="font-size:.65rem;color:var(--danger);font-weight:600">(-${fmt(itemDiscount)})</span>` : ''}</td>
+                <td style="font-weight:700;color:var(--info)">${fmt(itemNet)}</td>
+              </tr>`;
+            }).join('') : `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text3)">Nenhum atendimento concluído no período.</td></tr>`}
+          </tbody>
+          ${rows.length ? `<tfoot>
+            <tr>
+              <td colspan="3" style="font-weight:700">Total</td>
+              <td></td>
+              <td style="font-weight:700;color:var(--success)">${fmt(revenue)}</td>
+              <td style="font-weight:700;color:var(--info)">${fmt(net)}</td>
+            </tr>
+          </tfoot>` : ''}
+        </table>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+        <span class="badge b-grey">Faturamento: ${fmt(revenue)}</span>
+        <span class="badge b-warning">Taxa de desconto: ${discount.toLocaleString('pt-BR')}%</span>
+        <span class="badge b-danger">Desconto: ${fmt(commission)}</span>
+        <span class="badge b-success">Valor Líquido: ${fmt(net)}</span>
+      </div>
+    </div>
+  `);
+};
+
+/* =====================================================
    CONCILIAÇÃO BANCÁRIA
 ===================================================== */
 const reconStatusBadge = (t, result) => {
@@ -2261,6 +2512,7 @@ export const App = {
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
     else if(hash==='admin-reports') content=rAdmReports();
+    else if(hash==='admin-dreport') content=rAdmDReport();
     else if(hash==='admin-recon') content=rAdmRecon();
     else if(hash==='admin-pix') content=rAdmPix();
     else if(hash==='admin-reminders') content=rAdmReminders();
@@ -2312,6 +2564,7 @@ export const App = {
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
     else if(hash==='admin-reports') content=rAdmReports();
+    else if(hash==='admin-dreport') content=rAdmDReport();
     else if(hash==='admin-recon') content=rAdmRecon();
     else if(hash==='admin-pix') content=rAdmPix();
     else if(hash==='admin-reminders') content=rAdmReminders();
@@ -3479,6 +3732,84 @@ export const App = {
     this._reportFrom = '';
     this._reportTo = '';
     this._renderInPlace();
+  },
+
+  // --- Relatório Detalhado ---
+  dReportSetPeriod(p){
+    this._dreportPeriod = p;
+    if (p !== 'custom') { this._dreportFrom = ''; this._dreportTo = ''; }
+    this._renderInPlace();
+  },
+
+  dReportSetBarber(id){
+    this._dreportBarber = id;
+    this._renderInPlace();
+  },
+
+  dReportSetRange(which, value){
+    if (which === 'from') this._dreportFrom = value; else this._dreportTo = value;
+    if (this._dreportPeriod !== 'custom') this._dreportPeriod = 'custom';
+    this._renderInPlace();
+  },
+
+  dReportSetDiscount(v){
+    this._dreportDiscount = v;
+    this._renderInPlace();
+  },
+
+  dReportGenerate(){
+    const el = document.getElementById('drepDiscount');
+    if (el) this._dreportDiscount = el.value;
+    this._renderInPlace();
+  },
+
+  _drawDReportCharts(labels, data, payLabels, payData){
+    const ctx = document.getElementById('dReportChart');
+    if(ctx){
+      if(window._dReportChart) window._dReportChart.destroy();
+      window._dReportChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Faturamento (R$)',
+            data: data,
+            backgroundColor: '#C9A227',
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: '#252525' }, ticks: { color: '#a0a0a0', font: { size: 10 } } },
+            x: { grid: { display: false }, ticks: { color: '#a0a0a0', font: { size: 10 } } }
+          }
+        }
+      });
+    }
+    const pctx = document.getElementById('dReportPayChart');
+    if(pctx){
+      if(window._dReportPayChart) window._dReportPayChart.destroy();
+      window._dReportPayChart = new Chart(pctx, {
+        type: 'doughnut',
+        data: {
+          labels: payLabels.map(k => k === 'sem_registro' ? 'Sem registro' : PAY_LABEL(k)),
+          datasets: [{
+            data: payData,
+            backgroundColor: ['#C9A227','#3b82f6','#22c55e','#a855f7','#06b6d4','#ef4444'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { color: '#a0a0a0', font: { size: 11 } } } }
+        }
+      });
+    }
   },
 
   // --- Lembretes WhatsApp ---
