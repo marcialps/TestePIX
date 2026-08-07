@@ -33,6 +33,11 @@ const todayStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 };
+const addDays = (dstr, days) => {
+  const d = new Date(dstr + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
 const svcIcon = name => {
   const n = (name||'').toLowerCase();
   if(n.includes('barba')) return '🪒';
@@ -213,6 +218,7 @@ const rNavbar = () => {
       {h:'admin-services',l:'Serviços',i:'✦'},
       {h:'admin-barbers',l:'Barbeiros',i:'✂'},
       {h:'admin-store',l:'Loja',i:'🛒'},
+      {h:'admin-plans',l:'Planos',i:'★'},
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
       {h:'admin-dreport',l:'Relatório Detalhado',i:'🧾'},
       {h:'admin-recon',l:'Conciliação',i:'⇄'}
@@ -222,6 +228,7 @@ const rNavbar = () => {
       {h:'admin-services',l:'Serviços',i:'✦'},
       {h:'admin-barbers',l:'Barbeiros',i:'✂'},
       {h:'admin-store',l:'Loja',i:'🛒'},
+      {h:'admin-plans',l:'Planos',i:'★'},
       {h:'admin-appointments',l:'Agendamentos',i:'📅'},
       {h:'admin-clients',l:'Clientes',i:'👥'},
       {h:'admin-reports',l:'Relatórios',i:'📊'},
@@ -245,12 +252,14 @@ const rNavbar = () => {
     desktopLinks = [
       {h:'home',l:'Início',i:'⌂'},
       {h:'booking',l:'Agendar',i:'＋'},
+      {h:'plans',l:'Planos',i:'★'},
       {h:'store',l:'Loja',i:'🛒'},
       {h:'appointments',l:'Meus Agendamentos',i:'📅'}
     ];
     mobileLinks = [
       {h:'home',l:'Início',i:'⌂'},
       {h:'booking',l:'Agendar',i:'＋'},
+      {h:'plans',l:'Planos',i:'★'},
       {h:'store',l:'Loja',i:'🛒'},
       {h:'appointments',l:'Meus Agendamentos',i:'📅'}
     ];
@@ -445,6 +454,26 @@ const rHome = () => {
           <div class="svc-meta"><span class="svc-price">${fmt(s.price)}</span><span class="svc-dur">⏱ ${s.duration} min</span></div>
         </div>`).join('')}
       </div>
+    </section>
+    <div class="gold-line"></div>
+    <section>
+      <div class="sec-head"><span class="slabel">✦ Assinaturas</span><h2>Planos Exclusivos</h2></div>
+      ${DB.plans().filter(p => p.active !== false).length === 0 ? `
+      <div class="card" style="padding:24px;text-align:center;color:var(--text2);font-size:.87rem">
+        Nenhum plano disponível no momento.
+      </div>` : `
+      <div class="grid g3">
+        ${DB.plans().filter(p => p.active !== false).slice(0, 3).map(p => {
+          const svcNames = (p.serviceIds || []).map(id => svcs.find(s => s.id === id)?.name).filter(Boolean);
+          return `
+          <div class="svc-card" onclick="Nav.go('plans')">
+            <div class="svc-icon">★</div>
+            <div class="svc-name">${esc(p.name)}</div>
+            <div class="svc-meta"><span class="svc-price">${fmt(p.price)}</span><span class="svc-dur">${p.durationDays || 30} dias</span></div>
+            <div style="font-size:.74rem;color:var(--text3);margin-top:8px">${svcNames.length ? svcNames.slice(0, 2).map(n=>esc(n)).join(' · ') : ''}${svcNames.length > 2 ? '…' : ''}</div>
+          </div>`;
+        }).join('')}
+      </div>`}
     </section>
     <div class="gold-line"></div>
     <section style="margin-bottom:60px">
@@ -1051,6 +1080,84 @@ const rBarberClients = () => {
 };
 
 /* =====================================================
+   PLANOS (Clientes)
+===================================================== */
+const rPlans = () => {
+  const u = Auth.cur, td = todayStr();
+  const plans = DB.plans().filter(p => p.active !== false);
+  const svcs = DB.services();
+  const mySubs = DB.planSubs().filter(s => s.userId === u.id);
+
+  const rPlanCard = (p) => {
+    const svcNames = (p.serviceIds || []).map(id => svcs.find(s => s.id === id)?.name).filter(Boolean);
+    return `
+    <div class="card card-hover" style="padding:22px;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+        <div style="font-size:1.4rem">★</div>
+        <span class="badge b-gold" style="font-size:.62rem">${p.durationDays || 30} DIAS</span>
+      </div>
+      <div style="font-family:var(--ft);font-size:1.2rem;font-weight:700;margin-bottom:4px">${esc(p.name)}</div>
+      <div class="tgold" style="font-family:var(--ft);font-size:1.6rem;font-weight:700;margin-bottom:14px">${fmt(p.price)}<span style="font-size:.75rem;color:var(--text3);font-weight:400"> /período</span></div>
+      <div style="flex:1;font-size:.84rem;color:var(--text2);margin-bottom:16px">
+        ${p.description ? `<p style="margin-bottom:8px">${esc(p.description)}</p>` : ''}
+        <div style="font-weight:600;color:var(--text);margin-bottom:4px">Serviços inclusos:</div>
+        ${svcNames.length ? svcNames.map(n => `<div>✦ ${esc(n)}</div>`).join('') : `<div style="color:var(--text3)">Nenhum serviço vinculado</div>`}
+      </div>
+      <button class="btn btn-primary w-full" onclick="App.subscribePlan('${p.id}')">Assinar Plano</button>
+    </div>`;
+  };
+
+  const activeSub = mySubs.find(s => s.status === 'ativo' && s.endDate >= td && s.pixStatus !== 'pendente');
+
+  const rMySub = (s) => {
+    const svcNames = (s.serviceNames || []);
+    const exp = s.endDate < td;
+    const pendingPix = s.pixStatus === 'pendente';
+    const [bc, bl] = s.status === 'cancelado'
+      ? ['b-danger','Cancelado']
+      : exp ? ['b-grey','Expirado']
+      : pendingPix ? ['b-warning','Aguardando PIX']
+      : ['b-success','Ativo'];
+    return `
+    <div class="apt-card">
+      <div class="apt-dbox" style="background:var(--ga1);border:1px solid var(--gold3)"><div class="apt-day" style="color:var(--gold)">★</div><div class="apt-mon">PLANO</div></div>
+      <div style="flex:1;min-width:0">
+        <div class="apt-svc">${esc(s.planName || 'Plano')}</div>
+        <div class="apt-det">📅 Início ${fmtDate(s.startDate)} · Fim ${fmtDate(s.endDate)}</div>
+        <div class="apt-det">${fmt(s.price)}</div>
+        ${svcNames.length ? `<div class="apt-det" style="color:var(--text2)">✦ ${svcNames.map(n=>esc(n)).join(' · ')}</div>` : ''}
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <span class="badge ${bc}">${bl}</span>
+          ${pendingPix ? `<button class="btn btn-sm" style="background:var(--warning);color:#000;font-size:.72rem;padding:3px 10px" onclick="App.openSubPixModal('${s.id}')">Ver QR Code PIX</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  };
+
+  return `<div class="page"><div class="container">
+    <div class="ph"><div><h1 class="ptitle">★ Planos</h1><p class="psub">Assine um plano e aproveite os serviços da barbearia</p></div></div>
+    ${activeSub ? `
+    <div style="background:var(--ga1);border:1px solid var(--gold3);border-radius:var(--r);padding:14px 18px;margin-bottom:22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:1.5rem">✅</span>
+      <div style="flex:1;min-width:200px">
+        <div style="font-weight:700;font-family:var(--ft)">Seu plano <span class="tgold">${esc(activeSub.planName)}</span> está ativo</div>
+        <div style="font-size:.8rem;color:var(--text2)">Válido até ${fmtLong(activeSub.endDate)}</div>
+      </div>
+    </div>` : ''}
+    <section style="margin-bottom:44px">
+      <div class="sec-head"><span class="slabel">✦ Escolha o seu</span><h2>Planos Disponíveis</h2></div>
+      ${plans.length === 0 ? `<div class="empty"><div class="empty-ico">★</div><div class="empty-t">Nenhum plano disponível</div><div class="empty-d">A barbearia ainda não cadastrou planos.</div></div>` : `
+      <div class="grid g3">${plans.map(rPlanCard).join('')}</div>`}
+    </section>
+    <section style="margin-bottom:60px">
+      <div class="sec-head"><span class="slabel">✦ Suas assinaturas</span><h2>Meus Planos</h2></div>
+      ${mySubs.length === 0 ? `<div class="empty"><div class="empty-ico">📋</div><div class="empty-t">Você ainda não assinou nenhum plano</div></div>` : `
+      <div style="display:flex;flex-direction:column;gap:12px">${mySubs.map(rMySub).join('')}</div>`}
+    </section>
+  </div></div>`;
+};
+
+/* =====================================================
    ADMIN SCREENS
 ===================================================== */
 const rAdmLayout = (active, content) => {
@@ -1059,6 +1166,7 @@ const rAdmLayout = (active, content) => {
     {id:'admin-services',i:'✦',l:'Serviços'},
     {id:'admin-barbers',i:'✂',l:'Barbeiros'},
     {id:'admin-store',i:'🛒',l:'Loja'},
+    {id:'admin-plans',i:'★',l:'Planos'},
     {id:'admin-appointments',i:'📅',l:'Agendamentos'},
     {id:'admin-clients',i:'👥',l:'Clientes'},
     {id:'admin-reports',i:'📊',l:'Relatórios'},
@@ -1382,6 +1490,110 @@ const rAdmStore = () => {
       </div>`;
     }).join('')}
   </div>`}
+  `);
+};
+
+const rAdmPlans = () => {
+  const plans = DB.plans();
+  const subs = DB.planSubs();
+  const svcs = DB.services();
+  const td = todayStr();
+
+  const rPlanCard = (p) => {
+    const svcNames = (p.serviceIds || []).map(id => svcs.find(s => s.id === id)?.name).filter(Boolean);
+    const subCount = subs.filter(s => s.planId === p.id && s.status !== 'cancelado').length;
+    return `
+    <div class="card card-hover">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:11px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:38px;height:38px;border-radius:10px;background:var(--ga1);border:1px solid var(--gold3);display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0">★</div>
+          <div>
+            <div style="font-weight:700;font-family:var(--ft)">${esc(p.name)}</div>
+            <div style="font-size:.75rem;color:var(--text2)">${p.durationDays || 30} dias de validade</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="App.openPlanModal('${p.id}')">✎</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="App.delPlan('${p.id}')">✕</button>
+        </div>
+      </div>
+      <div style="font-size:.82rem;color:var(--text2);margin-bottom:10px">
+        ${svcNames.length ? svcNames.map(n=>`<span class="tag">${esc(n)}</span>`).join(' ') : `<span style="color:var(--text3)">Nenhum serviço vinculado</span>`}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:11px;border-top:1px solid var(--border)">
+        <span class="tgold" style="font-family:var(--ft);font-size:1.2rem;font-weight:700">${fmt(p.price)}</span>
+        <span class="badge b-info" style="font-size:.62rem">${subCount} assinante${subCount !== 1 ? 's' : ''}</span>
+      </div>
+    </div>`;
+  };
+
+  const rSubRow = (s) => {
+    const usr = _tenantUsers.find(u => u.id === s.userId);
+    const ac = avColor(usr?.name || s.userName || '?');
+    const tc = ac === '#C9A227' ? '#000' : '#fff';
+    const exp = s.endDate < td;
+    const pendingPix = s.pixStatus === 'pendente';
+    const [bc, bl] = s.status === 'cancelado'
+      ? ['b-danger','Cancelado']
+      : exp ? ['b-grey','Expirado']
+      : pendingPix ? ['b-warning','Aguardando PIX']
+      : ['b-success','Ativo'];
+    const svcNames = s.serviceNames || [];
+    return `<tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="uavatar" style="background:${ac};color:${tc}">${initials(usr?.name || s.userName || '?')}</div>
+          <div>
+            <div style="font-weight:600">${esc(usr?.name || s.userName || '—')}</div>
+            ${usr?.phone ? `<div style="font-size:.72rem;color:var(--text3)">${esc(usr.phone)}</div>` : ''}
+          </div>
+        </div>
+      </td>
+      <td><strong>${esc(s.planName || '—')}</strong></td>
+      <td style="font-size:.8rem">${svcNames.length ? svcNames.map(n=>esc(n)).join(', ') : '—'}</td>
+      <td>${fmtDate(s.startDate)}</td>
+      <td>${fmtDate(s.endDate)}</td>
+      <td><strong class="tgold">${fmt(s.price)}</strong></td>
+      <td><span class="badge ${bc}" style="font-size:.62rem">${bl}</span></td>
+      <td>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          ${pendingPix ? `<button class="btn btn-warning btn-sm" style="background:var(--warning);color:#000" onclick="App.openSubPixModal('${s.id}')">Ver PIX</button>
+          <button class="btn btn-success btn-sm" onclick="App.confirmSubPay('${s.id}')">Confirmar PIX</button>` : ''}
+          ${s.status !== 'cancelado' ? `<button class="btn btn-danger btn-sm" onclick="App.cancelSub('${s.id}')">Cancelar</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  };
+
+  const activeCount = subs.filter(s => s.status !== 'cancelado' && s.endDate >= td && s.pixStatus !== 'pendente').length;
+
+  return rAdmLayout('admin-plans',`
+  <div class="ph">
+    <div><h1 class="ptitle">★ Planos</h1><p class="psub">Cadastre planos com valores e serviços para seus clientes</p></div>
+    <button class="btn btn-primary" onclick="App.openPlanModal()">＋ Novo Plano</button>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card"><span class="tsm tmuted" style="font-weight:700">Total de Planos</span><div class="scv">${plans.length}</div></div>
+    <div class="stat-card"><span class="tsm tmuted" style="font-weight:700">Assinantes Ativos</span><div class="scv" style="color:var(--success)">${activeCount}</div></div>
+    <div class="stat-card"><span class="tsm tmuted" style="font-weight:700">Total de Assinaturas</span><div class="scv" style="color:var(--info)">${subs.length}</div></div>
+  </div>
+  <section style="margin-bottom:40px">
+    <div class="sec-head"><span class="slabel">✦ Planos cadastrados</span><h2>Meus Planos</h2></div>
+    ${plans.length === 0 ? `<div class="empty"><div class="empty-ico">★</div><div class="empty-t">Nenhum plano cadastrado</div><div class="empty-d">Cadastre planos com valor e serviços inclusos. Eles ficarão disponíveis para os clientes assinarem.</div></div>` : `
+    <div class="grid g2">${plans.map(rPlanCard).join('')}</div>`}
+  </section>
+  <section style="margin-bottom:60px">
+    <div class="sec-head"><span class="slabel">✦ Relatório de assinaturas</span><h2>Clientes Assinantes</h2></div>
+    ${subs.length === 0 ? `<div class="empty"><div class="empty-ico">📋</div><div class="empty-t">Nenhuma assinatura registrada</div><div class="empty-d">Quando um cliente assinar um plano, ele aparecerá aqui com data inicial, data final, valor e serviços.</div></div>` : `
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Cliente</th><th>Plano</th><th>Serviços</th><th>Início</th><th>Fim</th><th>Valor</th><th>Status</th><th>Ações</th></tr>
+        </thead>
+        <tbody>${subs.map(rSubRow).join('')}</tbody>
+      </table>
+    </div>`}
+  </section>
   `);
 };
 
@@ -2628,7 +2840,9 @@ export const App = {
             DB.loadServices(),
             DB.loadPros(),
             DB.loadApts(),
-            DB.loadProducts()
+            DB.loadProducts(),
+            DB.loadPlans(),
+            DB.loadPlanSubs()
           ]);
           _tenantUsers = await DB.loadTenantUsers();
         } else if(isBarber){
@@ -2636,7 +2850,9 @@ export const App = {
             DB.loadServices(),
             DB.loadPros(),
             DB.loadApts(),
-            DB.loadProducts()
+            DB.loadProducts(),
+            DB.loadPlans(),
+            DB.loadPlanSubs()
           ]);
           _tenantUsers = await DB.loadTenantUsers();
         } else {
@@ -2644,7 +2860,9 @@ export const App = {
             DB.loadServices(),
             DB.loadPros(),
             DB.loadUserApts(Auth.cur.id),
-            DB.loadProducts()
+            DB.loadProducts(),
+            DB.loadPlans(),
+            DB.loadUserPlanSubs(Auth.cur.id)
           ]);
         }
       }
@@ -2654,6 +2872,7 @@ export const App = {
     let content = '';
     if(hash==='home') content=rHome();
     else if(hash==='booking') content=rBooking();
+    else if(hash==='plans') content=rPlans();
     else if(hash==='store') content=rStore();
     else if(hash==='appointments') content=rAppointments();
     else if(hash==='barber-schedule') content=rBarberSchedule();
@@ -2663,6 +2882,7 @@ export const App = {
     else if(hash==='admin-services') content=rAdmServices();
     else if(hash==='admin-barbers') content=rAdmBarbers();
     else if(hash==='admin-store') content=rAdmStore();
+    else if(hash==='admin-plans') content=rAdmPlans();
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
     else if(hash==='admin-reports') content=rAdmReports();
@@ -2708,6 +2928,7 @@ export const App = {
     let content = '';
     if(hash==='home') content=rHome();
     else if(hash==='booking') content=rBooking();
+    else if(hash==='plans') content=rPlans();
     else if(hash==='store') content=rStore();
     else if(hash==='appointments') content=rAppointments();
     else if(hash==='barber-schedule') content=rBarberSchedule();
@@ -2717,6 +2938,7 @@ export const App = {
     else if(hash==='admin-services') content=rAdmServices();
     else if(hash==='admin-barbers') content=rAdmBarbers();
     else if(hash==='admin-store') content=rAdmStore();
+    else if(hash==='admin-plans') content=rAdmPlans();
     else if(hash==='admin-appointments') content=rAdmApts();
     else if(hash==='admin-clients') content=rAdmClients();
     else if(hash==='admin-reports') content=rAdmReports();
@@ -3639,6 +3861,124 @@ export const App = {
       T.ok('Produto excluído.');
       this._renderInPlace();
     }
+  },
+  openPlanModal(id=null){
+    const p=id?DB.plans().find(x=>x.id===id):null;
+    const svcs=DB.services();
+    const selIds = new Set(p?.serviceIds || []);
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal">
+        <div class="modal-head"><h3 class="modal-title">${p?'Editar Plano':'Novo Plano'}</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <form id="planFrm">
+          <div class="fg"><label class="flabel">Nome *</label><input type="text" name="name" class="fc" value="${esc(p?.name||'')}" placeholder="Ex: Plano Mensal Premium" required></div>
+          <div class="fg"><label class="flabel">Valor (R$) *</label><input type="number" name="price" class="fc" value="${p?.price||''}" min="0" step="0.01" required></div>
+          <div class="fg"><label class="flabel">Validade (dias) *</label><input type="number" name="durationDays" class="fc" value="${p?.durationDays||30}" min="1" step="1" required></div>
+          <div class="fg"><label class="flabel">Descrição (opcional)</label><textarea name="description" class="fc" rows="2" placeholder="Ex: Corte + barba 1x por semana">${esc(p?.description||'')}</textarea></div>
+          <div class="fg"><label class="flabel">Serviços inclusos</label>
+            <div style="display:flex;flex-direction:column;gap:7px;margin-top:5px">
+              ${svcs.length ? svcs.map(s=>`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:.84rem"><input type="checkbox" name="svc" value="${s.id}" ${selIds.has(s.id)?'checked':''}>${svcIcon(s.name)} ${esc(s.name)} <span style="margin-left:auto;color:var(--text3)">${fmt(s.price)}</span></label>`).join('') : `<div style="font-size:.8rem;color:var(--text3)">Cadastre serviços primeiro na aba "Serviços".</div>`}
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary w-full">${p?'Salvar':'Criar Plano'}</button>
+        </form>
+      </div>
+    </div>`;
+    document.getElementById('planFrm').onsubmit = async e => {
+      e.preventDefault(); const fd=new FormData(e.target);
+      const data = {
+        name: fd.get('name').trim(),
+        price: Math.max(0, parseFloat(fd.get('price'))||0),
+        durationDays: Math.max(1, parseInt(fd.get('durationDays'),10)||30),
+        description: (fd.get('description')||'').trim(),
+        serviceIds: fd.getAll('svc')
+      };
+      if(p) data.id = p.id;
+      try{
+        await DB.savePlan(data); App.closeModal(); T.ok(p?'Plano atualizado!':'Plano criado!'); this._renderInPlace();
+      }catch(err){ T.err('Erro ao salvar plano: '+err.message); }
+    };
+  },
+  async delPlan(id){
+    if(confirm('Excluir este plano?')){
+      await DB.deletePlan(id);
+      T.ok('Plano excluído.');
+      this._renderInPlace();
+    }
+  },
+  async subscribePlan(planId){
+    const p = DB.plans().find(x=>x.id===planId);
+    if(!p) return;
+    const u = Auth.cur;
+    const td = todayStr();
+    const end = addDays(td, Number(p.durationDays || 30) - 1);
+    const svcs = DB.services();
+    const serviceNames = (p.serviceIds || []).map(id => svcs.find(s=>s.id===id)?.name).filter(Boolean);
+    const pixCfg = _tenantInfo?.pixConfig;
+    try{
+      const docRef = await DB.addPlanSub({
+        planId: p.id,
+        planName: p.name,
+        userId: u.id,
+        userName: u.name,
+        price: p.price,
+        serviceIds: p.serviceIds || [],
+        serviceNames,
+        startDate: td,
+        endDate: end,
+        status: 'ativo',
+        pixStatus: pixCfg?.chave ? 'pendente' : null
+      });
+      const subId = docRef?.id || null;
+      T.ok(`Plano "${p.name}" assinado com sucesso!`);
+      this._renderInPlace();
+      if(pixCfg?.chave && subId){
+        this.openSubPixModal(subId);
+      }
+    }catch(e){ console.error(e); T.err('Erro ao assinar o plano.'); }
+  },
+  openSubPixModal(subId){
+    const sub = DB.planSubs().find(s=>s.id===subId);
+    const pixCfg = _tenantInfo?.pixConfig;
+    if(!sub || !pixCfg?.chave){ T.warn('PIX não disponível.'); return; }
+    let payload = null;
+    try{
+      payload = generatePixPayload({
+        chave:  pixCfg.chave,
+        nome:   pixCfg.nome   || 'Barbearia',
+        cidade: pixCfg.cidade || 'Brasil',
+        valor:  sub.price,
+        txId:   ('pl' + subId).slice(0,25).replace(/[^a-zA-Z0-9]/g,''),
+        desc:   ('Plano ' + (sub.planName || '')).slice(0,36)
+      });
+    }catch(e){ T.err('Erro ao gerar código PIX.'); return; }
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(payload)}`;
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-ov" onclick="if(event.target===this)App.closeModal()">
+      <div class="modal">
+        <div class="modal-head"><h3 class="modal-title">⚡ Pagar Plano via PIX</h3><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <div style="text-align:center">
+          <div style="font-size:.85rem;color:var(--text2);margin-bottom:4px">${esc(sub.planName || 'Plano')}</div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--gold);margin-bottom:14px">${fmt(sub.price)}</div>
+          <img src="${qrUrl}" alt="QR Code PIX" style="width:200px;height:200px;border-radius:12px;border:2px solid var(--border2);margin:0 auto;display:block">
+          <div style="margin:18px 0 6px;font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">Ou copie a linha digitável</div>
+          <div class="pix-code" onclick="App.copyPix('${esc(payload)}')" style="cursor:pointer">${esc(payload)}</div>
+          <button class="btn btn-primary w-full" style="margin-top:12px" onclick="App.copyPix('${esc(payload)}')">📋 Copiar código PIX</button>
+          <div style="margin-top:12px;font-size:.8rem;color:var(--text3)">Após pagar, o pagamento será confirmado pela equipe da barbearia.</div>
+        </div>
+      </div>
+    </div>`;
+  },
+  async confirmSubPay(subId){
+    await DB.updatePlanSub(subId, { pixStatus: 'pago' });
+    T.ok('Pagamento PIX confirmado.');
+    this._renderInPlace();
+  },
+  async cancelSub(subId){
+    if(!confirm('Cancelar esta assinatura?')) return;
+    await DB.updatePlanSub(subId, { status: 'cancelado' });
+    T.ok('Assinatura cancelada.');
+    this._renderInPlace();
   },
   async admCancel(id){
     if(confirm('Cancelar agendamento?')){

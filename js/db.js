@@ -8,7 +8,9 @@ let cache = {
   services: [],
   pros: [],
   apts: [],
-  products: []
+  products: [],
+  plans: [],
+  planSubs: []
 };
 
 // Flags de controle de cache — evitam recarregar dados já carregados
@@ -16,15 +18,17 @@ let _cacheLoaded = {
   services: false,
   pros: false,
   apts: false,
-  products: false
+  products: false,
+  plans: false,
+  planSubs: false
 };
 
 export const DB = {
   setBarbeariaId(id) {
     // Ao trocar de barbearia, invalida o cache anterior
     if (id !== currentBarbeariaId) {
-      cache = { services: [], pros: [], apts: [], products: [] };
-      _cacheLoaded = { services: false, pros: false, apts: false, products: false };
+      cache = { services: [], pros: [], apts: [], products: [], plans: [], planSubs: [] };
+      _cacheLoaded = { services: false, pros: false, apts: false, products: false, plans: false, planSubs: false };
     }
     currentBarbeariaId = id;
   },
@@ -33,15 +37,15 @@ export const DB = {
   /** Retorna true se os dados principais já foram carregados nesta sessão */
   hasCache(isAdmin = false) {
     if (isAdmin) {
-      return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts && _cacheLoaded.products;
+      return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts && _cacheLoaded.products && _cacheLoaded.plans && _cacheLoaded.planSubs;
     }
-    return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts && _cacheLoaded.products;
+    return _cacheLoaded.services && _cacheLoaded.pros && _cacheLoaded.apts && _cacheLoaded.products && _cacheLoaded.plans && _cacheLoaded.planSubs;
   },
 
   /** Invalida o cache forçando recarga na próxima navegação */
   invalidateCache(keys = null) {
     if (!keys) {
-      _cacheLoaded = { services: false, pros: false, apts: false, products: false };
+      _cacheLoaded = { services: false, pros: false, apts: false, products: false, plans: false, planSubs: false };
     } else {
       keys.forEach(k => { if (k in _cacheLoaded) _cacheLoaded[k] = false; });
     }
@@ -183,6 +187,70 @@ export const DB = {
     await updateDoc(doc(db, 'products', id), { stock });
     const idx = cache.products.findIndex(p => p.id === id);
     if (idx >= 0) cache.products[idx].stock = stock;
+  },
+
+  // ==============================
+  // PLANOS (Assinaturas)
+  // ==============================
+  async loadPlans() {
+    if (!currentBarbeariaId) return [];
+    const q = query(collection(db, 'plans'), where('barbeariaId', '==', currentBarbeariaId));
+    const snap = await getDocs(q);
+    cache.plans = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _cacheLoaded.plans = true;
+    return cache.plans;
+  },
+  plans() { return cache.plans; },
+  async savePlan(data) {
+    if (data.id) {
+      const id = data.id;
+      delete data.id;
+      await updateDoc(doc(db, 'plans', id), data);
+    } else {
+      await addDoc(collection(db, 'plans'), { ...data, barbeariaId: currentBarbeariaId, createdAt: new Date().toISOString() });
+    }
+    await this.loadPlans();
+  },
+  async deletePlan(id) {
+    await deleteDoc(doc(db, 'plans', id));
+    await this.loadPlans();
+  },
+
+  // ==============================
+  // ASSINATURAS DE PLANOS
+  // ==============================
+  async loadPlanSubs() {
+    if (!currentBarbeariaId) return [];
+    const q = query(collection(db, 'planSubscriptions'), where('barbeariaId', '==', currentBarbeariaId));
+    const snap = await getDocs(q);
+    cache.planSubs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    _cacheLoaded.planSubs = true;
+    return cache.planSubs;
+  },
+  async loadUserPlanSubs(userId) {
+    const q = query(collection(db, 'planSubscriptions'), where('userId', '==', userId));
+    const snap = await getDocs(q);
+    cache.planSubs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    _cacheLoaded.planSubs = true;
+    return cache.planSubs;
+  },
+  planSubs() { return cache.planSubs; },
+  async addPlanSub(sub) {
+    const docRef = await addDoc(collection(db, 'planSubscriptions'), { ...sub, barbeariaId: currentBarbeariaId, createdAt: new Date().toISOString() });
+    await this.loadPlanSubs();
+    return docRef;
+  },
+  async updatePlanSub(id, patch) {
+    await updateDoc(doc(db, 'planSubscriptions', id), patch);
+    const idx = cache.planSubs.findIndex(s => s.id === id);
+    if (idx >= 0) Object.assign(cache.planSubs[idx], patch);
+  },
+  async deletePlanSub(id) {
+    await deleteDoc(doc(db, 'planSubscriptions', id));
+    const idx = cache.planSubs.findIndex(s => s.id === id);
+    if (idx >= 0) cache.planSubs.splice(idx, 1);
   },
 
   // ==============================
