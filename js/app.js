@@ -1456,6 +1456,28 @@ const rAdmBarbers = () => {
 
 const rAdmStore = () => {
   const prods = DB.products();
+  const svcs = DB.services();
+
+  const sales = [];
+  DB.apts().filter(a => a.products && a.products.length && a.status !== 'cancelado')
+    .forEach(a => {
+      const sv = svcs.find(s => s.id === a.serviceId);
+      (a.products || []).forEach(p => {
+        const lineValue = Math.round((Number(p.price || 0) * Number(p.qty || 1)) * 100) / 100;
+        sales.push({
+          clientName: a.clientName || _tenantUsers.find(u => u.id === a.userId)?.name || '—',
+          date: a.date,
+          time: a.time || '',
+          product: p.name || 'Produto',
+          qty: Number(p.qty || 1),
+          value: lineValue,
+          service: sv?.name || '—'
+        });
+      });
+    });
+  sales.sort((x, y) => String(y.date).localeCompare(String(x.date)) || String(y.time).localeCompare(String(x.time)));
+  const totalSales = Math.round(sales.reduce((s, x) => s + x.value, 0) * 100) / 100;
+
   return rAdmLayout('admin-store',`
   <div class="ph">
     <div><h1 class="ptitle">🛒 Loja</h1><p class="psub">Gerencie os produtos vendidos na barbearia</p></div>
@@ -1490,6 +1512,45 @@ const rAdmStore = () => {
       </div>`;
     }).join('')}
   </div>`}
+  <div class="gold-line" style="margin:40px 0"></div>
+  <section style="margin-bottom:60px">
+    <div class="sec-head"><span class="slabel">✦ Produtos vendidos nos atendimentos</span><h2>Relatório de Vendas</h2></div>
+    ${sales.length === 0 ? `<div class="empty"><div class="empty-ico">🧾</div><div class="empty-t">Nenhuma venda registrada</div><div class="empty-d">Quando os clientes adicionarem produtos na tela de agendamento, as vendas aparecerão aqui com cliente, dia, valor e o atendimento.</div></div>` : `
+    <div class="stats-grid">
+      <div class="stat-card"><span class="tsm tmuted" style="font-weight:700">Total em Vendas</span><div class="scv" style="color:var(--success)">${fmt(totalSales)}</div></div>
+      <div class="stat-card"><span class="tsm tmuted" style="font-weight:700">Itens Vendidos</span><div class="scv" style="color:var(--info)">${sales.reduce((s,x)=>s+x.qty,0)}</div></div>
+      <div class="stat-card"><span class="tsm tmuted" style="font-weight:700">Vendas Realizadas</span><div class="scv">${sales.length}</div></div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Cliente</th><th>Dia</th><th>Produto</th><th>Qtd</th><th>Atendimento</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+          ${sales.map(v=>{
+            const ac = avColor(v.clientName);
+            const tc = ac === '#C9A227' ? '#000' : '#fff';
+            return `<tr>
+              <td>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div class="uavatar" style="background:${ac};color:${tc}">${initials(v.clientName)}</div>
+                  <div>
+                    <div style="font-weight:600">${esc(v.clientName)}</div>
+                    ${v.time ? `<div style="font-size:.72rem;color:var(--text3)">🕐 ${esc(v.time)}</div>` : ''}
+                  </div>
+                </div>
+              </td>
+              <td>${fmtDate(v.date)}</td>
+              <td><strong>${esc(v.product)}</strong>${v.qty > 1 ? ` <span class="badge b-grey" style="font-size:.6rem">×${v.qty}</span>` : ''}</td>
+              <td>${v.qty}</td>
+              <td><span class="badge b-info" style="font-size:.66rem">${esc(v.service)}</span></td>
+              <td><strong class="tgold">${fmt(v.value)}</strong></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`}
+  </section>
   `);
 };
 
