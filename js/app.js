@@ -1588,16 +1588,22 @@ const rAdmPlans = () => {
     </div>`;
   };
 
+  const subStatus = (s) => {
+    if (s.status === 'cancelado') return 'cancelado';
+    if (s.endDate < td) return 'expirado';
+    if (s.pixStatus === 'pendente') return 'pendente';
+    return 'ativo';
+  };
+
   const rSubRow = (s) => {
     const usr = _tenantUsers.find(u => u.id === s.userId);
     const ac = avColor(usr?.name || s.userName || '?');
     const tc = ac === '#C9A227' ? '#000' : '#fff';
-    const exp = s.endDate < td;
-    const pendingPix = s.pixStatus === 'pendente';
-    const [bc, bl] = s.status === 'cancelado'
+    const st = subStatus(s);
+    const [bc, bl] = st === 'cancelado'
       ? ['b-danger','Cancelado']
-      : exp ? ['b-grey','Expirado']
-      : pendingPix ? ['b-warning','Aguardando PIX']
+      : st === 'expirado' ? ['b-grey','Expirado']
+      : st === 'pendente' ? ['b-warning','Aguardando PIX']
       : ['b-success','Ativo'];
     const svcNames = s.serviceNames || [];
     return `<tr>
@@ -1618,15 +1624,38 @@ const rAdmPlans = () => {
       <td><span class="badge ${bc}" style="font-size:.62rem">${bl}</span></td>
       <td>
         <div style="display:flex;gap:5px;flex-wrap:wrap">
-          ${pendingPix ? `<button class="btn btn-warning btn-sm" style="background:var(--warning);color:#000" onclick="App.openSubPixModal('${s.id}')">Ver PIX</button>
+          ${st === 'pendente' ? `<button class="btn btn-warning btn-sm" style="background:var(--warning);color:#000" onclick="App.openSubPixModal('${s.id}')">Ver PIX</button>
           <button class="btn btn-success btn-sm" onclick="App.confirmSubPay('${s.id}')">Confirmar PIX</button>` : ''}
           ${s.status !== 'cancelado' ? `<button class="btn btn-danger btn-sm" onclick="App.cancelSub('${s.id}')">Cancelar</button>` : ''}
+          <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="App.delPlanSub('${s.id}')">Excluir</button>
         </div>
       </td>
     </tr>`;
   };
 
   const activeCount = subs.filter(s => s.status !== 'cancelado' && s.endDate >= td && s.pixStatus !== 'pendente').length;
+
+  const fStatus = App._plansSubStatus || '';
+  const fPlan = App._plansSubPlan || '';
+  const filtered = subs.filter(s =>
+    (!fStatus || subStatus(s) === fStatus) &&
+    (!fPlan || s.planId === fPlan)
+  );
+
+  const subFilterBar = `
+  <div class="apt-filter-bar" style="justify-content:flex-start">
+    <select class="fc" style="width:auto;min-width:180px" onchange="App.setPlansSubStatus(this.value)" title="Filtrar por status">
+      <option value="">Todos os status</option>
+      <option value="ativo" ${fStatus === 'ativo' ? 'selected' : ''}>Ativo</option>
+      <option value="pendente" ${fStatus === 'pendente' ? 'selected' : ''}>Aguardando PIX</option>
+      <option value="expirado" ${fStatus === 'expirado' ? 'selected' : ''}>Expirado</option>
+      <option value="cancelado" ${fStatus === 'cancelado' ? 'selected' : ''}>Cancelado</option>
+    </select>
+    <select class="fc" style="width:auto;min-width:180px" onchange="App.setPlansSubPlan(this.value)" title="Filtrar por plano">
+      <option value="">Todos os planos</option>
+      ${plans.map(p => `<option value="${p.id}" ${fPlan === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+    </select>
+  </div>`;
 
   return rAdmLayout('admin-plans',`
   <div class="ph">
@@ -1646,12 +1675,13 @@ const rAdmPlans = () => {
   <section style="margin-bottom:60px">
     <div class="sec-head"><span class="slabel">✦ Relatório de assinaturas</span><h2>Clientes Assinantes</h2></div>
     ${subs.length === 0 ? `<div class="empty"><div class="empty-ico">📋</div><div class="empty-t">Nenhuma assinatura registrada</div><div class="empty-d">Quando um cliente assinar um plano, ele aparecerá aqui com data inicial, data final, valor e serviços.</div></div>` : `
+    ${subFilterBar}
     <div class="tbl-wrap">
       <table>
         <thead>
           <tr><th>Cliente</th><th>Plano</th><th>Serviços</th><th>Início</th><th>Fim</th><th>Valor</th><th>Status</th><th>Ações</th></tr>
         </thead>
-        <tbody>${subs.map(rSubRow).join('')}</tbody>
+        <tbody>${filtered.length ? filtered.map(rSubRow).join('') : `<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--text2)">Nenhum assinante encontrado com os filtros selecionados.</td></tr>`}</tbody>
       </table>
     </div>`}
   </section>
@@ -2855,6 +2885,8 @@ export const App = {
   _aptPeriod: 'todo',
   _aptDate: new Date(),
   _aptBarber: '',
+  _plansSubStatus: '',
+  _plansSubPlan: '',
   async render(){
     const hash=window.location.hash.slice(1).split('?')[0]||'home';
     const app=document.getElementById('app');
@@ -4039,6 +4071,20 @@ export const App = {
     if(!confirm('Cancelar esta assinatura?')) return;
     await DB.updatePlanSub(subId, { status: 'cancelado' });
     T.ok('Assinatura cancelada.');
+    this._renderInPlace();
+  },
+  async delPlanSub(subId){
+    if(!confirm('Excluir definitivamente esta assinatura?')) return;
+    await DB.deletePlanSub(subId);
+    T.ok('Assinatura excluída.');
+    this._renderInPlace();
+  },
+  setPlansSubStatus(status) {
+    this._plansSubStatus = status;
+    this._renderInPlace();
+  },
+  setPlansSubPlan(id) {
+    this._plansSubPlan = id;
     this._renderInPlace();
   },
   async admCancel(id){
